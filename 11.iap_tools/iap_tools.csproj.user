@@ -4,9 +4,6 @@
     <_LastSelectedProfileId>D:\work\lsl\9.upper\1.code\11.iap_tools\iap_tools\Properties\PublishProfiles\FolderProfile.pubxml</_LastSelectedProfileId>
   </PropertyGroup>
   <ItemGroup>
-    <Compile Update="Form1.cs">
-      <SubType>Form</SubType>
-    </Compile>
     <Compile Update="MainForm.cs">
       <SubType>Form</SubType>
     </Compile>

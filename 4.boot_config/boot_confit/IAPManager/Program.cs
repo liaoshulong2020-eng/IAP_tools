@@ -26,8 +26,10 @@ namespace IAPManager
         private Label lblProjectPath;
         private TextBox txtProjectName;
         private Label lblProjectName;
-        private ComboBox cmbChipType; // 新增：芯片类型选择
-        private Label lblChipType;    // 新增：芯片类型标签
+        private ComboBox cmbChipType; // 芯片类型选择
+        private Label lblChipType;    // 芯片类型标签
+        private ComboBox cmbTarget;   // 目标选择（LLC/PFC）
+        private Label lblTarget;      // 目标标签
         private Button btnUserConfig;
         private Button btnCompile;
         private TextBox txtLog;
@@ -152,6 +154,30 @@ namespace IAPManager
             cmbChipType.Size = new Size(80, 25);
             cmbChipType.TabIndex = 6;
             cmbChipType.SelectedIndexChanged += CmbChipType_SelectedIndexChanged;
+            //
+            // lblTarget
+            //
+            lblTarget = new Label();
+            lblTarget.Location = new Point(500, 55);
+            lblTarget.Name = "lblTarget";
+            lblTarget.Size = new Size(50, 23);
+            lblTarget.TabIndex = 7;
+            lblTarget.Text = "目标:";
+            lblTarget.TextAlign = ContentAlignment.MiddleLeft;
+            gbProjectSettings.Controls.Add(lblTarget);
+            //
+            // cmbTarget
+            //
+            cmbTarget = new ComboBox();
+            cmbTarget.DropDownStyle = ComboBoxStyle.DropDownList;
+            cmbTarget.Items.AddRange(new object[] { "LLC", "PFC" });
+            cmbTarget.Location = new Point(550, 55);
+            cmbTarget.Name = "cmbTarget";
+            cmbTarget.Size = new Size(70, 25);
+            cmbTarget.TabIndex = 8;
+            cmbTarget.SelectedIndex = 0;
+            cmbTarget.SelectedIndexChanged += CmbTarget_SelectedIndexChanged;
+            gbProjectSettings.Controls.Add(cmbTarget);
             // 
             // gbMode
             // 
@@ -309,33 +335,66 @@ namespace IAPManager
                 chipType = cmbChipType.SelectedItem.ToString();
                 LogMessage($"芯片类型已切换为: {chipType}");
 
+                // 5300只有LLC，禁用PFC选项
+                if (chipType == "5300")
+                {
+                    cmbTarget.SelectedIndex = 0; // LLC
+                    cmbTarget.Enabled = false;
+                }
+                else
+                {
+                    cmbTarget.Enabled = true;
+                }
+
                 // 更新按钮文本以反映当前芯片类型
                 btnCreateBootLoaderFiles.Text = $"创建BootLoader文件({chipType})";
+            }
+        }
+
+        // 目标选择事件处理（LLC/PFC）
+        private void CmbTarget_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            if (cmbTarget.SelectedItem != null)
+            {
+                string target = cmbTarget.SelectedItem.ToString();
+                LogMessage($"升级目标已切换为: {target}");
             }
         }
 
         // 获取当前芯片类型对应的BootLoader数据
         private byte[] GetCurrentBootLoaderBinData()
         {
-            switch (chipType)
+            string target = cmbTarget?.SelectedItem?.ToString() ?? "LLC";
+
+            if (chipType == "5300")
             {
-                case "5300":
-                    return MyData.BOOTLOADER_5300_BIN_DATA;
-                case "5800":
-                default:
-                    return MyData.BOOTLOADER_5800_BIN_DATA;
+                return MyData.BOOTLOADER_5300_BIN_DATA;
+            }
+            else if (target == "PFC")
+            {
+                return MyData.BOOTLOADER_5800_PFC_BIN_DATA;
+            }
+            else
+            {
+                return MyData.BOOTLOADER_5800_BIN_DATA;
             }
         }
 
         private byte[] GetCurrentBootLoaderHexData()
         {
-            switch (chipType)
+            string target = cmbTarget?.SelectedItem?.ToString() ?? "LLC";
+
+            if (chipType == "5300")
             {
-                case "5300":
-                    return MyData.BOOTLOADER_5300_HEX_DATA;
-                case "5800":
-                default:
-                    return MyData.BOOTLOADER_5800_HEX_DATA;
+                return MyData.BOOTLOADER_5300_HEX_DATA;
+            }
+            else if (target == "PFC")
+            {
+                return MyData.BOOTLOADER_5800_PFC_HEX_DATA;
+            }
+            else
+            {
+                return MyData.BOOTLOADER_5800_HEX_DATA;
             }
         }
         // 需要在MainForm类中添加或修改的方法

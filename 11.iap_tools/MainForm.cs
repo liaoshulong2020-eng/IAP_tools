@@ -19,6 +19,7 @@ namespace IapUpgradeTool
         // === 新增简化模式控件 ===
         private GroupBox _simpleGroupBox;
         private ComboBox _chipTypeComboBox;
+        private ComboBox _targetComboBox;
         private NumericUpDown _modbusAddrUpDown;
         private NumericUpDown _baudrateUpDown;
         private TextBox _firmwareFileTextBox;
@@ -117,40 +118,61 @@ namespace IapUpgradeTool
                 Size = new Size(80, 25),
                 DropDownStyle = ComboBoxStyle.DropDownList
             };
-            _chipTypeComboBox.Items.AddRange(new[] { "5300", "5800", "5800-PFC", "自定义" });
+            _chipTypeComboBox.Items.AddRange(new[] { "5300", "5800", "自定义" });
             _chipTypeComboBox.SelectedIndex = 0; // 默认5300
             _chipTypeComboBox.SelectedIndexChanged += ChipTypeComboBox_SelectedIndexChanged;
             _simpleGroupBox.Controls.Add(_chipTypeComboBox);
 
+            var targetLabel = new Label
+            {
+                Text = "目标:",
+                Location = new Point(170, simpleY),
+                Size = new Size(40, 20)
+            };
+            _simpleGroupBox.Controls.Add(targetLabel);
+
+            _targetComboBox = new ComboBox
+            {
+                Location = new Point(215, simpleY - 3),
+                Size = new Size(70, 25),
+                DropDownStyle = ComboBoxStyle.DropDownList
+            };
+            _targetComboBox.Items.AddRange(new[] { "LLC", "PFC" });
+            _targetComboBox.SelectedIndex = 0; // 默认LLC
+            _targetComboBox.SelectedIndexChanged += TargetComboBox_SelectedIndexChanged;
+            _simpleGroupBox.Controls.Add(_targetComboBox);
+
             var addrLabel = new Label
             {
                 Text = "地址:",
-                Location = new Point(170, simpleY),
-                Size = new Size(40, 20)
+                Location = new Point(305, simpleY),
+                Size = new Size(40, 20),
+                ForeColor = Color.Gray
             };
             _simpleGroupBox.Controls.Add(addrLabel);
 
             _modbusAddrUpDown = new NumericUpDown
             {
-                Location = new Point(215, simpleY - 3),
+                Location = new Point(350, simpleY - 3),
                 Size = new Size(60, 25),
                 Minimum = 1,
                 Maximum = 247,
-                Value = 2
+                Value = 2,
+                Enabled = false
             };
             _simpleGroupBox.Controls.Add(_modbusAddrUpDown);
 
             var baudLabel = new Label
             {
                 Text = "波特率:",
-                Location = new Point(290, simpleY),
+                Location = new Point(430, simpleY),
                 Size = new Size(50, 20)
             };
             _simpleGroupBox.Controls.Add(baudLabel);
 
             _baudrateUpDown = new NumericUpDown
             {
-                Location = new Point(345, simpleY - 3),
+                Location = new Point(485, simpleY - 3),
                 Size = new Size(80, 25),
                 Minimum = 9600,
                 Maximum = 460800,
@@ -330,21 +352,45 @@ namespace IapUpgradeTool
 
             if (chipType == "5300")
             {
-                _modbusAddrUpDown.Value = 2; // 保持您原有配置的地址
+                // 5300只有LLC，禁用PFC选项
+                _targetComboBox.SelectedIndex = 0; // LLC
+                _targetComboBox.Enabled = false;
                 _baudrateUpDown.Value = 115200;
             }
             else if (chipType == "5800")
             {
-                _modbusAddrUpDown.Value = 2; // LLC地址
+                // 5800支持LLC和PFC
+                _targetComboBox.Enabled = true;
                 _baudrateUpDown.Value = 115200;
             }
-            else if (chipType == "5800-PFC")
+            else
             {
-                _modbusAddrUpDown.Value = 1; // PFC地址
-                _baudrateUpDown.Value = 115200;
+                _targetComboBox.Enabled = true;
             }
 
+            UpdateModbusAddr();
             UpdateSimpleConfigDisplay();
+        }
+
+        private void TargetComboBox_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            UpdateModbusAddr();
+            UpdateSimpleConfigDisplay();
+        }
+
+        private void UpdateModbusAddr()
+        {
+            var chipType = _chipTypeComboBox.SelectedItem?.ToString();
+            var target = _targetComboBox.SelectedItem?.ToString();
+
+            if (chipType == "5300")
+            {
+                _modbusAddrUpDown.Value = 2; // 5300只有LLC
+            }
+            else if (chipType == "5800")
+            {
+                _modbusAddrUpDown.Value = (target == "PFC") ? 1 : 2;
+            }
         }
 
         private void SelectFirmwareButton_Click(object sender, EventArgs e)
@@ -453,29 +499,10 @@ namespace IapUpgradeTool
                 }
                 else if (chipType == "5800")
                 {
-                    // 5800芯片LLC的标准配置
+                    // 5800芯片（LLC和PFC地址布局相同，通过Modbus地址区分）
                     _currentConfig = new IapConfig
                     {
                         ModbusAddr = (byte)_modbusAddrUpDown.Value,
-                        AppFile = _firmwareFileTextBox.Text,
-                        Baudrate = (int)_baudrateUpDown.Value,
-                        FlashBaseAddr = 134217728,    // 0x08000000
-                        FlashMaxSize = 262144,        // 256KB
-                        AppBaseAddr = 134250496,      // 0x08008000 (32KB偏移)
-                        AppMaxSize = 229376,          // ~224KB
-                        ArgBaseAddr = 134246400,      // 0x08007000
-                        ReadWriteSize = 128,
-                        EnableResume = false,
-                        LastWrittenAddr = 0,
-                        LastWrittenProgress = 0
-                    };
-                }
-                else if (chipType == "5800-PFC")
-                {
-                    // 5800芯片PFC的配置（地址布局与LLC相同，Modbus地址为1）
-                    _currentConfig = new IapConfig
-                    {
-                        ModbusAddr = (byte)_modbusAddrUpDown.Value, // PFC地址=1
                         AppFile = _firmwareFileTextBox.Text,
                         Baudrate = (int)_baudrateUpDown.Value,
                         FlashBaseAddr = 134217728,    // 0x08000000
