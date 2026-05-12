@@ -1,0 +1,9 @@
+{
+    "bootFile":"205B-LLC/BootLoader-5300.bin",
+    "appFile":"205B-LLC/205B-LLC_V1_4_20240718.bin",
+    "outFile":"205B-LLC/205B-LLC_V1_4_20240718-all.bin",
+    "bootMaxSize":30720,
+    "argBaseAddr":30240,
+    "appBaseAddr":30720,
+    "appMaxSize":46080
+}

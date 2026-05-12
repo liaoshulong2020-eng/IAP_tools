@@ -1,0 +1,9 @@
+{
+    "bootFile":"209B-LLC/BootLoader-5300.bin",
+    "appFile":"209B-LLC/209B-LLC.bin",
+    "outFile":"209B-LLC/209B-LLC-all.bin",
+    "bootMaxSize":30720,
+    "argBaseAddr":30240,
+    "appBaseAddr":30720,
+    "appMaxSize":46080
+}

@@ -1,0 +1,11 @@
+{
+  "baudrate": 115200,
+  "modbusAddr": 2,
+  "appFile": "D:\\work\\LSL\\9.upper\\1.code\\11.iap_tools\\205B-LLC_V1_8_20250113\\205B-LLC_V1_8_20250113_iap.bin",
+  "flashBaseAddr": 134217728,
+  "flashMaxSize": 76800,
+  "appBaseAddr": 134248448,
+  "appMaxSize": 46080,
+  "argBaseAddr": 134247968,
+  "readWriteSize": 240
+}

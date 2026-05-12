@@ -1,0 +1,49 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+	<PropertyGroup>
+		<OutputType>WinExe</OutputType>
+		<TargetFramework>net8.0-windows</TargetFramework>
+		<Nullable>enable</Nullable>
+		<UseWindowsForms>true</UseWindowsForms>
+		<ImplicitUsings>enable</ImplicitUsings>
+
+		<!-- EXE文件名 -->
+		<AssemblyName>ZHLD_boot_config</AssemblyName>
+
+		<!-- 应用程序信息 -->
+		<AssemblyTitle>boot配置工具</AssemblyTitle>
+		<AssemblyDescription>boot配置工具</AssemblyDescription>
+		<AssemblyCompany>深圳中瀚蓝盾电源有限公司</AssemblyCompany>
+		<AssemblyProduct>boot配置工具</AssemblyProduct>
+		<AssemblyCopyright>Copyright © 2025 深圳中瀚蓝盾电源有限公司</AssemblyCopyright>
+
+		<!-- 版本信息 -->
+		<AssemblyVersion>1.0.0.0</AssemblyVersion>
+		<FileVersion>1.0.0.0</FileVersion>
+		<Version>1.0.0</Version>
+
+		<!-- 图标配置 - 请确保zhld.ico文件在项目根目录下 -->
+		<ApplicationIcon>zhld.ico</ApplicationIcon>
+
+		<!-- 发布配置 -->
+		<PublishSingleFile>true</PublishSingleFile>
+		<SelfContained>true</SelfContained>
+		<RuntimeIdentifier>win-x64</RuntimeIdentifier>
+		<PublishReadyToRun>true</PublishReadyToRun>
+		<EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
+	</PropertyGroup>
+
+	<!-- 图标文件配置 -->
+	<ItemGroup>
+		<Content Include="zhld.ico">
+			<CopyToOutputDirectory>Never</CopyToOutputDirectory>
+		</Content>
+	</ItemGroup>
+
+	<!-- NuGet包引用 -->
+	<ItemGroup>
+		<!-- JSON处理包 -->
+		<PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+		<!-- 系统管理包（用于硬件信息获取） -->
+		<PackageReference Include="System.Management" Version="8.0.0" />
+	</ItemGroup>
+</Project>

@@ -1,0 +1,301 @@
+﻿import tkinter as tk
+from tkinter import ttk, messagebox
+
+# ── CRC8 ────────────────────────────────────────────────────────────────────
+def crc8(data):
+crc = 0
+for b in data:
+crc ^= b
+for _ in range(8):
+crc = ((crc << 1) ^ 0x07) & 0xFF if (crc & 0x80) else (crc << 1) & 0xFF
+    return crc
+
+# ── 命令定义 ─────────────────────────────────────────────────────────────────
+# type: 'simple' | '16bit' | '16bit_crc' | 'calibration'
+COMMANDS = [
+    # 分组：基本控制
+    {"group": "基本控制"},
+    {"name": "查询数据",       "cmd": 0x01, "type": "simple",      "desc": "查询设备实时数据"},
+    {"name": "查询版本",       "cmd": 0x02, "type": "simple",      "desc": "查询固件版本号"},
+    {"name": "扫描设备",       "cmd": 0x03, "type": "simple",      "desc": "扫描总线上的设备"},
+    {"name": "停机",           "cmd": 0x04, "type": "simple",      "desc": "关闭输出"},
+    {"name": "启动",           "cmd": 0x05, "type": "simple",      "desc": "开启输出"},
+
+    # 分组：Flash操作
+    {"group": "Flash 操作"},
+    {"name": "保存到 Flash",   "cmd": 0x11, "type": "simple",      "desc": "将当前参数保存到Flash"},
+    {"name": "从 Flash 加载",  "cmd": 0x12, "type": "simple",      "desc": "从Flash加载参数"},
+
+    # 分组：过温设置
+    {"group": "过温设置"},
+    {"name": "过温恢复 关",    "cmd": 0x13, "type": "simple",      "desc": "过温后锁死模式"},
+    {"name": "过温恢复 开",    "cmd": 0x14, "type": "simple",      "desc": "过温后自动恢复模式"},
+    {"name": "设置过温点",     "cmd": 0x0F, "type": "16bit",       "desc": "过温保护触发温度",
+     "fields": [{"label": "过温点 (°C)", "key": "temp", "default": "80"}]},
+    {"name": "设置过温恢复点", "cmd": 0x10, "type": "16bit_crc",   "desc": "过温后恢复工作温度",
+     "fields": [{"label": "恢复温度 (°C)", "key": "temp", "default": "70"}]},
+
+    # 分组：电压校准
+    {"group": "电压校准"},
+    {"name": "电压校准",       "cmd": 0x22, "type": "calibration", "desc": "发送三帧校准指令 (0x22 + 0x23 + 0x24)",
+     "fields": [
+         {"label": "实际电压 (V)", "key": "input_v",  "default": "29.000"},
+         {"label": "目标电压 (V)", "key": "target_v", "default": "28.500"},
+     ]},
+]
+
+# ── 帧生成逻辑 ────────────────────────────────────────────────────────────────
+def build_frames(cmd_def, values):
+    """返回 [(描述, 字节列表), ...]"""
+    t = cmd_def["type"]
+
+    if t == "simple":
+        return [(cmd_def["name"], [0x00, cmd_def["cmd"], 0x00, 0x00, 0x00, 0x00, 0x00, 0x00])]
+
+    elif t == "16bit":
+        val = int(float(values["temp"])) & 0xFFFF
+        lo, hi = val & 0xFF, (val >> 8) & 0xFF
+        return [(cmd_def["name"], [0x00, cmd_def["cmd"], lo, hi, 0x00, 0x00, 0x00, 0x00])]
+
+    elif t == "16bit_crc":
+        val = int(float(values["temp"])) & 0xFFFF
+        lo, hi = val & 0xFF, (val >> 8) & 0xFF
+        crc_data = [cmd_def["cmd"], lo, hi]
+        crc = crc8(crc_data)
+        return [(cmd_def["name"], [0x00, cmd_def["cmd"], lo, hi, crc, 0x00, 0x00, 0x00])]
+
+    elif t == "calibration":
+        factor = int(float(values["input_v"])  * 1000) & 0xFFFF
+        theor  = int(float(values["target_v"]) * 1000) & 0xFFFF
+        f_lo, f_hi = factor & 0xFF, (factor >> 8) & 0xFF
+        t_lo, t_hi = theor  & 0xFF, (theor  >> 8) & 0xFF
+        crc_data = [0x24, f_lo, f_hi, 0x00, 0x00, t_lo, t_hi, 0x00, 0x00]
+        crc = crc8(crc_data)
+        return [
+            ("① CMD_FACTOR_VOLTAGE  0x22", [0x00, 0x22, f_lo, f_hi, 0x00, 0x00, 0x00, 0x00]),
+            ("② CMD_THEOR_VOLTAGE   0x23", [0x00, 0x23, t_lo, t_hi, 0x00, 0x00, 0x00, 0x00]),
+            ("③ CMD_VOLTAGE_CRC     0x24", [0x00, 0x24, crc,  0x00, 0x00, 0x00, 0x00, 0x00]),
+            ("④ CMD_STORE_FLASH     0x11", [0x00, 0x11, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]),
+        ]
+
+    return []
+
+def fmt(b): return f"{b:02X}"
+def frame_str(bs): return "  ".join(fmt(b) for b in bs)
+
+# ── 主窗口 ────────────────────────────────────────────────────────────────────
+root = tk.Tk()
+root.title("CAN 命令生成器  —  深圳中瀚蓝盾电源有限公司")
+root.resizable(False, False)
+root.configure(bg="#f0f2f5")
+
+BG    = "#f0f2f5"
+CARD  = "#ffffff"
+ACCENT = "#0078d4"
+SEL   = "#e5f1fb"
+GRP   = "#dce6f0"
+MONO  = ("Consolas", 12, "bold")
+UI    = ("微软雅黑", 10)
+UI_SM = ("微软雅黑", 9)
+
+# ── 布局主框架 ────────────────────────────────────────────────────────────────
+main = tk.Frame(root, bg=BG)
+main.pack(fill=tk.BOTH, expand=True, padx=16, pady=12)
+
+# ══ 左侧：命令列表 ════════════════════════════════════════════════════════════
+left = tk.Frame(main, bg=CARD, bd=1, relief=tk.GROOVE, width=200)
+left.pack(side=tk.LEFT, fill=tk.Y, padx=(0, 10))
+left.pack_propagate(False)
+
+tk.Label(left, text="命令列表", bg=GRP, font=("微软雅黑", 10, "bold"),
+         fg="#333", pady=8).pack(fill=tk.X)
+
+list_frame = tk.Frame(left, bg=CARD)
+list_frame.pack(fill=tk.BOTH, expand=True)
+
+# ══ 右侧：参数 + 结果 ═════════════════════════════════════════════════════════
+right = tk.Frame(main, bg=BG)
+right.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+
+# 右上：命令说明 + 参数输入
+param_card = tk.LabelFrame(right, text="  参数设置  ", bg=CARD,
+                            font=UI, fg="#555", relief=tk.GROOVE, bd=1,
+                            padx=16, pady=12)
+param_card.pack(fill=tk.X, pady=(0, 10))
+
+lbl_cmd_title = tk.Label(param_card, text="", bg=CARD,
+                         font=("微软雅黑", 12, "bold"), fg=ACCENT, anchor=tk.W)
+lbl_cmd_title.pack(fill=tk.X)
+
+lbl_cmd_desc = tk.Label(param_card, text="", bg=CARD,
+                        font=UI_SM, fg="#888", anchor=tk.W)
+lbl_cmd_desc.pack(fill=tk.X, pady=(2, 10))
+
+param_inputs_frame = tk.Frame(param_card, bg=CARD)
+param_inputs_frame.pack(fill=tk.X)
+
+btn_generate = tk.Button(param_card, text="生 成 帧", font=("微软雅黑", 11, "bold"),
+                         bg=ACCENT, fg="#fff", relief=tk.FLAT,
+                         padx=24, pady=7, cursor="hand2")
+btn_generate.pack(pady=(14, 0))
+
+# 右下：结果区
+result_card = tk.LabelFrame(right, text="  生成结果  ", bg=CARD,
+                             font=UI, fg="#555", relief=tk.GROOVE, bd=1,
+                             padx=16, pady=12)
+result_card.pack(fill=tk.BOTH, expand=True)
+
+result_inner = tk.Frame(result_card, bg=CARD)
+result_inner.pack(fill=tk.BOTH, expand=True)
+
+# ── 状态变量 ──────────────────────────────────────────────────────────────────
+current_cmd   = None
+entry_widgets = {}   # key -> Entry
+result_rows   = []   # [(label_widget, var_widget, copy_btn)]
+
+selected_btn  = None
+
+# ── 左侧命令按钮渲染 ──────────────────────────────────────────────────────────
+def on_select(cmd_def):
+    global current_cmd, selected_btn
+
+    # 恢复上一个按钮颜色
+    if selected_btn:
+        selected_btn.config(bg=CARD, fg="#333")
+
+    current_cmd = cmd_def
+    btn = cmd_buttons[cmd_def["name"]]
+    btn.config(bg=SEL, fg=ACCENT)
+    selected_btn = btn
+
+    # 更新标题和描述
+    lbl_cmd_title.config(text=f"{cmd_def['name']}  (0x{cmd_def['cmd']:02X})")
+    lbl_cmd_desc.config(text=cmd_def.get("desc", ""))
+
+    # 清空旧输入
+    for w in param_inputs_frame.winfo_children():
+        w.destroy()
+    entry_widgets.clear()
+
+    fields = cmd_def.get("fields", [])
+    if fields:
+        for i, f in enumerate(fields):
+            tk.Label(param_inputs_frame, text=f["label"] + "：",
+                     bg=CARD, font=UI, width=16, anchor=tk.W).grid(
+                row=i, column=0, sticky=tk.W, pady=4)
+            e = tk.Entry(param_inputs_frame, font=("Consolas", 13),
+                         width=12, relief=tk.SOLID, bd=1, justify=tk.CENTER)
+            e.insert(0, f["default"])
+            e.grid(row=i, column=1, sticky=tk.W, padx=8, pady=4)
+            entry_widgets[f["key"]] = e
+        btn_generate.config(state=tk.NORMAL)
+    else:
+        tk.Label(param_inputs_frame, text="此命令无需参数，直接点击生成。",
+                 bg=CARD, font=UI_SM, fg="#aaa").pack(anchor=tk.W)
+        btn_generate.config(state=tk.NORMAL)
+
+    # 清空结果
+    clear_results()
+
+cmd_buttons = {}
+
+for item in COMMANDS:
+    if "group" in item:
+        tk.Label(list_frame, text=item["group"], bg=GRP,
+                 font=("微软雅黑", 9, "bold"), fg="#555",
+                 pady=5, padx=10, anchor=tk.W).pack(fill=tk.X)
+    else:
+        name = item["name"]
+        b = tk.Button(list_frame, text=f"  {name}",
+                      bg=CARD, fg="#333", font=UI,
+                      relief=tk.FLAT, anchor=tk.W, padx=6, pady=6,
+                      cursor="hand2",
+                      command=lambda d=item: on_select(d))
+        b.pack(fill=tk.X)
+        cmd_buttons[name] = b
+
+        def on_enter(e, btn=b): 
+            if btn != selected_btn: btn.config(bg="#f5f5f5")
+        def on_leave(e, btn=b):
+            if btn != selected_btn: btn.config(bg=CARD)
+        b.bind("<Enter>
+	", on_enter)
+	b.bind("<Leave>
+		", on_leave)
+
+		# ── 结果渲染 ──────────────────────────────────────────────────────────────────
+		COLORS = [ACCENT, "#107c10", "#d83b01", "#6b2fa0"]
+
+		def clear_results():
+		for w in result_inner.winfo_children():
+		w.destroy()
+		result_rows.clear()
+
+		def copy_text(text, btn):
+		root.clipboard_clear()
+		root.clipboard_append(text)
+		btn.config(text="✓ 已复制")
+		root.after(1500, lambda: btn.config(text="复制"))
+
+		def generate():
+		if not current_cmd:
+		return
+		values = {k: e.get().strip() for k, e in entry_widgets.items()}
+
+		# 校验
+		try:
+		for f in current_cmd.get("fields", []):
+		float(values[f["key"]])
+		except ValueError:
+		messagebox.showerror("输入错误", "请输入有效的数字")
+		return
+
+		try:
+		frames = build_frames(current_cmd, values)
+		except Exception as ex:
+		messagebox.showerror("生成失败", str(ex))
+		return
+
+		clear_results()
+
+		for i, (desc, bs) in enumerate(frames):
+		color = COLORS[i % len(COLORS)]
+		row = tk.Frame(result_inner, bg=CARD, pady=4)
+		row.pack(fill=tk.X, pady=2)
+
+		# 左色条
+		tk.Frame(row, bg=color, width=4).pack(side=tk.LEFT, fill=tk.Y, padx=(0, 10))
+
+		info = tk.Frame(row, bg=CARD)
+		info.pack(side=tk.LEFT, fill=tk.X, expand=True)
+
+		tk.Label(info, text=desc, bg=CARD, font=UI_SM, fg="#888",
+		anchor=tk.W).pack(fill=tk.X)
+
+		hex_str = frame_str(bs)
+		tk.Label(info, text=hex_str, bg="#f5f5f5", fg=color,
+		font=MONO, anchor=tk.W, padx=8, pady=3,
+		relief=tk.FLAT).pack(fill=tk.X)
+
+		btn_copy = tk.Button(row, text="复制", font=UI_SM,
+		bg="#e1e1e1", relief=tk.FLAT, padx=8,
+		cursor="hand2",
+		command=lambda s=hex_str, b=None: None)
+		btn_copy.config(command=lambda s=hex_str, b=btn_copy: copy_text(s, b))
+		btn_copy.pack(side=tk.RIGHT, padx=(8, 4))
+
+		btn_generate.config(command=generate)
+		root.bind("<Return>", lambda e: generate())
+
+# ── 底部公司信息 ──────────────────────────────────────────────────────────────
+footer = tk.Frame(root, bg="#e0e4ea", pady=5)
+footer.pack(fill=tk.X, side=tk.BOTTOM)
+tk.Label(footer,
+         text="深圳中瀚蓝盾电源有限公司  |  CAN 命令生成器 v1.0.0  |  Copyright © 2025",
+         bg="#e0e4ea", fg="#999", font=("微软雅黑", 8)).pack()
+
+# ── 默认选中第一个命令 ────────────────────────────────────────────────────────
+first_cmd = next(item for item in COMMANDS if "name" in item)
+on_select(first_cmd)
+
+root.mainloop()

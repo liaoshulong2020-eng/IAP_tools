@@ -1,0 +1,14 @@
+{
+  "ModbusAddr": 2,
+  "AppFile": "D:\\work\\LSL\\9.upper\\1.code\\11.iap_tools\\iap_tools\\test\\207B-LLC\\207B-LLC_V1_6_20250608_iap.bin",
+  "Baudrate": 115200,
+  "FlashBaseAddr": 134217728,
+  "FlashMaxSize": 76800,
+  "AppBaseAddr": 134248448,
+  "AppMaxSize": 46080,
+  "ArgBaseAddr": 134247968,
+  "ReadWriteSize": 240,
+  "EnableResume": false,
+  "LastWrittenAddr": 0,
+  "LastWrittenProgress": 0
+}

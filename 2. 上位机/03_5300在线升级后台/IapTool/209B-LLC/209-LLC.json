@@ -1,0 +1,11 @@
+{
+    "baudrate":115200,
+    "modbusAddr":2,
+    "appFile":"209B-LLC/209B-LLC.bin",
+    "flashBaseAddr":134217728,
+    "flashMaxSize":76800,
+    "appBaseAddr":134248448,
+    "appMaxSize":46080,
+    "argBaseAddr":134247968,
+    "readWriteSize":240
+}

@@ -1,0 +1,94 @@
+
+#include "main.h"
+
+
+
+/* Private Constants ---------------------------------------------------------*/
+/** @defgroup User_GPIO_Flow_LED_Private_Constants User GPIO_Flow_LED Private Constants
+  * @brief    User GPIO_Flow_LED Private Constants
+  * @{
+  */
+
+#define LED_PORT_C    					GPIOC
+#define LED_PIN_13      				GPIO_PIN_3
+
+#define POWER_DET_PORT    			GPIOC
+#define POWER_DET_PIN_15	      GPIO_PIN_15
+
+
+/**
+  * @brief  User GPIO Example
+  * @param  None
+  * @return None
+  */
+void gpio_app_init()
+{
+    gpio_output_init();
+    gpio_input_init();
+    gpio_state_init();
+}
+
+/**
+  * @}
+  */
+
+
+/* Private Functions ---------------------------------------------------------*/
+/** @addtogroup User_GPIO_Flow_LED_Private_Functions
+  * @{
+  */
+
+/**
+  * @brief  User GPIO Init
+  * @param  None
+  * @return None
+  */
+void User_GPIO_Init()
+{
+    GPIO_InitTypeDef LED_GPIO_Init;
+    LED_GPIO_Init.Alternate = GPIO_AF1_OUTPUT;
+    LED_GPIO_Init.Pull      = GPIO_NOPULL;
+    LED_GPIO_Init.IntMode   = GPIO_INT_MODE_CLOSE;
+    LED_GPIO_Init.OType     = GPIO_OTYPE_PP;
+    LED_GPIO_Init.Speed     = GPIO_SPEED_FREQ_LOW;
+    //User GPIO LED Init
+    LED_GPIO_Init.Pin = LED_PIN_13;
+    LL_GPIO_Init ( LED_PORT_C, &LED_GPIO_Init );
+    //User GPIO LED4 Init
+    LED_GPIO_Init.Pin = POWER_DET_PIN_15;
+    LL_GPIO_Init ( POWER_DET_PORT, &LED_GPIO_Init );
+}
+
+void gpio_input_init()
+{
+}
+
+void gpio_state_init()
+{
+    LL_GPIO_WritePin ( LED_PORT_C, LED_PIN_13, GPIO_PIN_SET );
+    LL_GPIO_WritePin ( POWER_DET_PORT, POWER_DET_PIN_15, GPIO_PIN_SET );
+}
+
+/**
+  * @}
+  */
+void breathing_light()
+{
+    pfc.led_cnt++;
+    if (pfc.led_cnt>60000)
+        {
+            pfc.led_cnt = 0;
+        }
+}
+
+/**
+  * @}
+  */
+
+/**
+  * @}
+  */
+
+
+/************************* (C) COPYRIGHT Tai-Action *****END OF FILE***********/
+
