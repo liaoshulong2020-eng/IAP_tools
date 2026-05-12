@@ -35,3 +35,8 @@ desktop.ini
 
 # PDF文档（太大）
 *.pdf
+
+# 压缩文件
+*.rar
+*.zip
+*.7z
