@@ -11,6 +11,7 @@ internal sealed class CanIapUpgradeSession
     private const int WriteSize = 128;
     private const int MaxMainRetries = 999;
     private const int MainRetryDelayMs = 5000;
+    private const int WriteRetryDelayMs = 200;
 
     private readonly Func<byte[], CancellationToken, Task> _sendPacketAsync;
     private readonly Func<CancellationToken, Task>? _recoverTransportAsync;
@@ -225,12 +226,14 @@ internal sealed class CanIapUpgradeSession
             bool ok = false;
             for (int retry = 0; retry < 5; retry++)
             {
-                byte[]? ack = await SendAndWaitAsync(BuildPacket(3, addr, WriteSize, block), TimeSpan.FromMilliseconds(2500), token);
+                byte[]? ack = await SendAndWaitAsync(BuildPacket(3, addr, WriteSize, block), TimeSpan.FromMilliseconds(3000), token);
                 if (ack != null && GetCmd(ack) == 3 && GetAddr(ack) == addr && GetLen(ack) == WriteSize)
                 {
                     ok = true;
                     break;
                 }
+
+                await Task.Delay(WriteRetryDelayMs, token);
             }
 
             if (!ok)
@@ -263,7 +266,7 @@ internal sealed class CanIapUpgradeSession
 
         for (int retry = 0; retry < 10; retry++)
         {
-            byte[]? ack = await SendAndWaitAsync(BuildPacket(4, ArgBaseAddr, WriteSize, data), TimeSpan.FromMilliseconds(2500), token);
+            byte[]? ack = await SendAndWaitAsync(BuildPacket(4, ArgBaseAddr, WriteSize, data), TimeSpan.FromMilliseconds(3000), token);
             if (ack != null && GetCmd(ack) == 4 && GetLen(ack) == WriteSize)
             {
                 _log("校验信息写入完成");

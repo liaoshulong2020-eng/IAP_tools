@@ -3014,6 +3014,9 @@ namespace CAN_TOOLS
 
         private async Task SendIapPacketByCanAsync(byte[] packet, int channel, uint canId, CancellationToken token)
         {
+            const int iapCanFrameDelayMs = 5;
+            const int iapPacketGapMs = 20;
+
             for (int offset = 0; offset < packet.Length; offset += 8)
             {
                 token.ThrowIfCancellationRequested();
@@ -3029,8 +3032,10 @@ namespace CAN_TOOLS
                     await RecoverIapCanChannelAsync(channel, token);
                     SendIapCanFrame(frame, channel, canId);
                 }
-                await Task.Delay(2, token);
+                await Task.Delay(iapCanFrameDelayMs, token);
             }
+
+            await Task.Delay(iapPacketGapMs, token);
         }
 
         private async Task RecoverIapCanChannelAsync(int channel, CancellationToken token)
