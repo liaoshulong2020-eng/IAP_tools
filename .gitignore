@@ -44,3 +44,6 @@ desktop.ini
 # Visual Studio user-local files
 *.csproj.user
 **/.vs/
+
+# Required runtime dependency for CAN_TOOLS_NET8.0
+!CAN_TOOLS_NET8.0/dll/ControlCANFD.dll
