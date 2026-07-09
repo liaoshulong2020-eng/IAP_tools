@@ -21,6 +21,17 @@ namespace CAN_TOOLS
     {
         private volatile bool isTimerProcessing = false;
         private readonly object timerLock = new object();
+        private System.Threading.Timer? _dataProcessTimer = null;
+        private readonly System.Collections.Concurrent.ConcurrentQueue<(uint id, byte[] data, uint ch)> _dataQueue
+            = new System.Collections.Concurrent.ConcurrentQueue<(uint, byte[], uint)>();
+        private int _dataProcessPending = 0;
+        private int _dataQueueLength = 0;
+        private long _lastUiDataRefreshMs = 0;
+        private const int DATA_PROCESS_INTERVAL_MS = 100;
+        private const int DATA_PROCESS_BATCH_LIMIT = 5000;
+        private const int DATA_QUEUE_WARN_LIMIT = 50000;
+        private const int DATA_QUEUE_DROP_LIMIT = 80000;
+        private const int UI_DATA_REFRESH_INTERVAL_MS = 200;
 
         // 命令定义（匹配下位机）
         private const byte CMD_QUERY = 0x01;
@@ -155,6 +166,7 @@ namespace CAN_TOOLS
         private Dictionary<uint, DeviceData> devicesInfoMap = new Dictionary<uint, DeviceData>();
         private Dictionary<uint, uint> idToChannelMap = new Dictionary<uint, uint>();
         private Dictionary<uint, uint> channelToPureId = new Dictionary<uint, uint>(); // display ch → pureId
+        private readonly object _idMapLock = new object();
         private Dictionary<uint, DateTime> deviceLastResponseTime = new Dictionary<uint, DateTime>();
         private readonly int DEVICE_TIMEOUT_SECONDS = 10;
         private List<uint> registeredIds = new List<uint>();
@@ -171,6 +183,8 @@ namespace CAN_TOOLS
         private byte _versionFrameCnt = 0;
         private CanIapUpgradeSession? _iapUpgradeSession;
         private CancellationTokenSource? _iapUpgradeCts;
+        private volatile bool _iapUpgradeInProgress = false;
+        private bool _autoRefreshWasEnabledBeforeIap = false;
         private TextBox? _iapFileTextBox;
         private ComboBox? _iapTargetComboBox;
         private ComboBox? _iapChannelComboBox;
@@ -180,6 +194,8 @@ namespace CAN_TOOLS
         private Button? _iapStartButton;
         private Button? _iapStopButton;
         private Label? _iapStatusLabel;
+        private Label? _iapProgressValueLabel;
+        private RichTextBox? _iapLogTextBox;
 
         // 每通道发送计数（TX）
         private readonly Dictionary<uint, uint> _txCountPerChannel = new Dictionary<uint, uint>();
@@ -197,6 +213,7 @@ namespace CAN_TOOLS
         public MainForm()
         {
             InitializeComponent();
+            NormalizeMainLayout();
             InitializeCurrentSharingDisplay();
             // 设置默认选项（放在构造函数中，避免Designer重写时丢失）
             comboBox_device.SelectedIndex = 0;    // USBCANFD-200U
@@ -212,6 +229,45 @@ namespace CAN_TOOLS
             // 在代码中创建电源开关指示灯（避免修改庞大的 Designer.cs）
             CreatePowerLedLabels();
             CreateFirmwareUpgradeTab();
+        }
+
+        private void NormalizeMainLayout()
+        {
+            panel_log.Height = 240;
+            panel_log.MinimumSize = new Size(0, 180);
+            panel_log.MaximumSize = new Size(0, 320);
+            panel_log.Padding = new Padding(8, 6, 8, 8);
+
+            richTextBox_recv.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
+            checkBox_autoScroll.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+            button_clear.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+            checkBox_autoScroll.AutoSize = false;
+            checkBox_autoScroll.Text = "保持最新";
+            button_clear.Text = "清空";
+
+            groupRecv.Resize += (_, _) => LayoutGlobalLogPanel();
+            LayoutGlobalLogPanel();
+        }
+
+        private void LayoutGlobalLogPanel()
+        {
+            if (groupRecv.ClientSize.Width <= 0 || groupRecv.ClientSize.Height <= 0)
+                return;
+
+            const int margin = 8;
+            const int titleHeight = 22;
+            const int sideWidth = 126;
+            int sideLeft = Math.Max(margin, groupRecv.ClientSize.Width - sideWidth - margin);
+
+            checkBox_autoScroll.Location = new Point(sideLeft, titleHeight + 2);
+            checkBox_autoScroll.Size = new Size(sideWidth, 26);
+            button_clear.Location = new Point(sideLeft, titleHeight + 36);
+            button_clear.Size = new Size(82, 32);
+
+            richTextBox_recv.Location = new Point(margin, titleHeight);
+            richTextBox_recv.Size = new Size(
+                Math.Max(120, sideLeft - margin * 2),
+                Math.Max(60, groupRecv.ClientSize.Height - titleHeight - margin));
         }
 
         private void RegisterDisplayLabels()
@@ -351,111 +407,261 @@ namespace CAN_TOOLS
             {
                 Dock = DockStyle.Fill,
                 ColumnCount = 1,
-                RowCount = 3,
-                Padding = new Padding(16)
+                RowCount = 4,
+                Padding = new Padding(14),
+                BackColor = Color.FromArgb(247, 248, 250)
             };
-            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 200));
-            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 46));
+            root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 48));
+            root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
 
-            var settings = new GroupBox { Text = "IAP升级配置", Dock = DockStyle.Fill };
-            var targetLabel = new Label { Text = "目标", Location = new Point(18, 32), Size = new Size(50, 24) };
+            var settings = new GroupBox
+            {
+                Text = "IAP升级配置",
+                Dock = DockStyle.Top,
+                AutoSize = true,
+                AutoSizeMode = AutoSizeMode.GrowAndShrink,
+                Padding = new Padding(14, 18, 14, 14),
+                Margin = new Padding(0, 0, 0, 10)
+            };
+
+            var settingsLayout = new TableLayoutPanel
+            {
+                Dock = DockStyle.Top,
+                AutoSize = true,
+                ColumnCount = 4,
+                RowCount = 5,
+                Padding = new Padding(0),
+                Margin = new Padding(0)
+            };
+            settingsLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 58));
+            settingsLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
+            settingsLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 72));
+            settingsLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
+
+            Label MakeFieldLabel(string text) => new Label
+            {
+                Text = text,
+                Dock = DockStyle.Fill,
+                TextAlign = ContentAlignment.MiddleLeft,
+                Margin = new Padding(0, 4, 8, 4),
+                AutoSize = false
+            };
+
             _iapTargetComboBox = new ComboBox
             {
-                Location = new Point(72, 29),
-                Size = new Size(100, 25),
-                DropDownStyle = ComboBoxStyle.DropDownList
+                Dock = DockStyle.Fill,
+                DropDownStyle = ComboBoxStyle.DropDownList,
+                Margin = new Padding(0, 4, 18, 4)
             };
             _iapTargetComboBox.Items.AddRange(new object[] { "LLC", "PFC" });
             _iapTargetComboBox.SelectedIndex = 0;
 
-            var channelLabel = new Label { Text = "CAN通道", Location = new Point(190, 32), Size = new Size(70, 24) };
             _iapChannelComboBox = new ComboBox
             {
-                Location = new Point(264, 29),
-                Size = new Size(80, 25),
-                DropDownStyle = ComboBoxStyle.DropDownList
+                Dock = DockStyle.Fill,
+                DropDownStyle = ComboBoxStyle.DropDownList,
+                Margin = new Padding(0, 4, 0, 4)
             };
             _iapChannelComboBox.Items.AddRange(new object[] { "通道1", "通道2" });
             _iapChannelComboBox.SelectedIndex = 0;
 
-            var canIdModeLabel = new Label { Text = "CAN ID", Location = new Point(380, 32), Size = new Size(58, 24) };
             _iapCanIdModeComboBox = new ComboBox
             {
-                Location = new Point(442, 29),
-                Size = new Size(238, 25),
-                DropDownStyle = ComboBoxStyle.DropDownList
+                Dock = DockStyle.Fill,
+                DropDownStyle = ComboBoxStyle.DropDownList,
+                Margin = new Padding(0, 4, 0, 4)
             };
             _iapCanIdModeComboBox.Items.AddRange(new object[]
             {
                 "节点ID 0xA0000~0xA0007",
-                "旧兼容ID 0xAA55"
+                "固定ID 0xAA55"
             });
             _iapCanIdModeComboBox.SelectedIndex = 0;
 
-            var nodesLabel = new Label { Text = "节点", Location = new Point(18, 72), Size = new Size(50, 24) };
+            var nodeRow = new FlowLayoutPanel
+            {
+                Dock = DockStyle.Fill,
+                AutoSize = true,
+                WrapContents = true,
+                Margin = new Padding(0, 2, 0, 6)
+            };
             _iapNodesCheckedListBox = new CheckedListBox
             {
-                Location = new Point(72, 63),
-                Size = new Size(520, 48),
+                Size = new Size(590, 34),
                 CheckOnClick = true,
                 MultiColumn = true,
-                ColumnWidth = 62
+                ColumnWidth = 68,
+                Margin = new Padding(0, 0, 12, 0)
             };
             for (int node = 0; node < 8; node++)
             {
                 _iapNodesCheckedListBox.Items.Add($"节点{node}", true);
             }
-            var selectAllNodesButton = new Button { Text = "全选", Location = new Point(608, 67), Size = new Size(64, 29) };
+            var selectAllNodesButton = new Button { Text = "全选", Size = new Size(70, 28), Margin = new Padding(0, 2, 0, 0) };
             selectAllNodesButton.Click += (_, _) =>
             {
                 if (_iapNodesCheckedListBox == null) return;
                 for (int i = 0; i < _iapNodesCheckedListBox.Items.Count; i++)
                     _iapNodesCheckedListBox.SetItemChecked(i, true);
             };
+            nodeRow.Controls.Add(_iapNodesCheckedListBox);
+            nodeRow.Controls.Add(selectAllNodesButton);
 
-            var fileLabel = new Label { Text = "固件", Location = new Point(18, 122), Size = new Size(50, 24) };
+            var browseRow = new TableLayoutPanel
+            {
+                Dock = DockStyle.Fill,
+                ColumnCount = 2,
+                AutoSize = true,
+                Margin = new Padding(0, 4, 0, 4)
+            };
+            browseRow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            browseRow.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 86));
             _iapFileTextBox = new TextBox
             {
-                Location = new Point(72, 119),
-                Size = new Size(620, 25),
-                ReadOnly = true
+                Dock = DockStyle.Fill,
+                ReadOnly = true,
+                Margin = new Padding(0, 0, 10, 0)
             };
-            var browseButton = new Button { Text = "选择", Location = new Point(704, 117), Size = new Size(76, 29) };
+            var browseButton = new Button { Text = "选择", Dock = DockStyle.Fill };
             browseButton.Click += IapBrowseButton_Click;
+            browseRow.Controls.Add(_iapFileTextBox, 0, 0);
+            browseRow.Controls.Add(browseButton, 1, 0);
 
-            _iapStartButton = new Button { Text = "批量升级", Location = new Point(72, 158), Size = new Size(100, 30) };
+            var actionRow = new FlowLayoutPanel
+            {
+                Dock = DockStyle.Fill,
+                AutoSize = false,
+                Height = 48,
+                WrapContents = true,
+                Margin = new Padding(0, 8, 0, 0)
+            };
+            _iapStartButton = new Button
+            {
+                Text = "批量升级",
+                Size = new Size(170, 40),
+                Font = new Font(Font.FontFamily, 10F, FontStyle.Bold),
+                Margin = new Padding(0, 0, 12, 0)
+            };
             _iapStartButton.Click += IapStartButton_Click;
-            _iapStopButton = new Button { Text = "停止", Location = new Point(184, 158), Size = new Size(82, 30), Enabled = false };
+            _iapStopButton = new Button { Text = "停止", Size = new Size(96, 40), Enabled = false, Margin = new Padding(0, 0, 18, 0) };
             _iapStopButton.Click += IapStopButton_Click;
             _iapStatusLabel = new Label
             {
-                Text = "使用CAN盒直接升级，请确认CAN已启动",
-                Location = new Point(290, 164),
-                Size = new Size(600, 24),
-                ForeColor = Color.DimGray
+                Text = "就绪，请确认CAN已启动",
+                AutoSize = true,
+                ForeColor = Color.DimGray,
+                Margin = new Padding(0, 10, 0, 0)
             };
+            actionRow.Controls.Add(_iapStartButton);
+            actionRow.Controls.Add(_iapStopButton);
+            actionRow.Controls.Add(_iapStatusLabel);
 
-            settings.Controls.AddRange(new Control[]
+            var nodesLabel = MakeFieldLabel("节点");
+            void RefreshIapCanIdModeUi()
             {
-                targetLabel, _iapTargetComboBox, channelLabel, _iapChannelComboBox,
-                canIdModeLabel, _iapCanIdModeComboBox,
-                nodesLabel, _iapNodesCheckedListBox, selectAllNodesButton,
-                fileLabel, _iapFileTextBox, browseButton, _iapStartButton, _iapStopButton, _iapStatusLabel
-            });
+                bool legacyMode = _iapCanIdModeComboBox.SelectedIndex == 1;
+                nodesLabel.Visible = !legacyMode;
+                nodeRow.Visible = !legacyMode;
+                _iapStartButton.Text = legacyMode ? "固定ID升级" : "批量升级";
+                if (_iapStatusLabel != null && !(_iapStopButton?.Enabled ?? false))
+                {
+                    _iapStatusLabel.Text = legacyMode
+                        ? "固定ID模式使用 0xAA55，不需要选择节点"
+                        : "就绪，请确认CAN已启动";
+                    _iapStatusLabel.ForeColor = Color.DimGray;
+                }
+            }
+            _iapCanIdModeComboBox.SelectedIndexChanged += (_, _) => RefreshIapCanIdModeUi();
 
-            _iapProgressBar = new ProgressBar { Dock = DockStyle.Fill, Style = ProgressBarStyle.Continuous };
-            var hint = new Label
+            settingsLayout.Controls.Add(MakeFieldLabel("目标"), 0, 0);
+            settingsLayout.Controls.Add(_iapTargetComboBox, 1, 0);
+            settingsLayout.Controls.Add(MakeFieldLabel("CAN通道"), 2, 0);
+            settingsLayout.Controls.Add(_iapChannelComboBox, 3, 0);
+            settingsLayout.Controls.Add(MakeFieldLabel("CAN ID"), 0, 1);
+            settingsLayout.Controls.Add(_iapCanIdModeComboBox, 1, 1);
+            settingsLayout.SetColumnSpan(_iapCanIdModeComboBox, 3);
+            settingsLayout.Controls.Add(nodesLabel, 0, 2);
+            settingsLayout.Controls.Add(nodeRow, 1, 2);
+            settingsLayout.SetColumnSpan(nodeRow, 3);
+            settingsLayout.Controls.Add(MakeFieldLabel("固件"), 0, 3);
+            settingsLayout.Controls.Add(browseRow, 1, 3);
+            settingsLayout.SetColumnSpan(browseRow, 3);
+            settingsLayout.Controls.Add(new Label(), 0, 4);
+            settingsLayout.Controls.Add(actionRow, 1, 4);
+            settingsLayout.SetColumnSpan(actionRow, 3);
+            RefreshIapCanIdModeUi();
+
+            settings.Controls.Add(settingsLayout);
+
+            var progressLayout = new TableLayoutPanel
+            {
+                Dock = DockStyle.Left,
+                Width = 760,
+                ColumnCount = 3,
+                Margin = new Padding(0, 0, 0, 8),
+                Padding = new Padding(0)
+            };
+            progressLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 74));
+            progressLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            progressLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 62));
+            progressLayout.Controls.Add(new Label
+            {
+                Text = "升级进度",
+                Dock = DockStyle.Fill,
+                TextAlign = ContentAlignment.MiddleLeft,
+                ForeColor = Color.DimGray
+            }, 0, 0);
+            _iapProgressBar = new ProgressBar
             {
                 Dock = DockStyle.Fill,
-                Text = "节点ID模式使用扩展帧ID 0xA0000~0xA0007。旧兼容模式使用固定扩展帧ID 0xAA55，IAP包内地址仍与串口工具一致：LLC=2，PFC=1。",
+                Style = ProgressBarStyle.Continuous,
+                Margin = new Padding(0, 10, 10, 8)
+            };
+            _iapProgressValueLabel = new Label
+            {
+                Text = "0%",
+                Dock = DockStyle.Fill,
+                TextAlign = ContentAlignment.MiddleRight,
+                Font = new Font(Font.FontFamily, 9F, FontStyle.Bold),
+                ForeColor = Color.FromArgb(28, 94, 32)
+            };
+            progressLayout.Controls.Add(_iapProgressBar, 1, 0);
+            progressLayout.Controls.Add(_iapProgressValueLabel, 2, 0);
+
+            var hint = new Label
+            {
+                Dock = DockStyle.Top,
+                AutoSize = true,
+                Text = "固定ID模式使用扩展帧ID 0xAA55；节点ID模式使用扩展帧ID 0xA0000~0xA0007；IAP包内地址仍与串口工具一致：LLC=2，PFC=1。",
                 ForeColor = Color.DimGray,
-                TextAlign = ContentAlignment.TopLeft
+                TextAlign = ContentAlignment.TopLeft,
+                Margin = new Padding(0, 0, 0, 10)
             };
 
+            var logGroup = new GroupBox
+            {
+                Text = "IAP日志",
+                Dock = DockStyle.Fill,
+                Padding = new Padding(10, 18, 10, 10),
+                Margin = new Padding(0)
+            };
+            _iapLogTextBox = new RichTextBox
+            {
+                Dock = DockStyle.Fill,
+                ReadOnly = true,
+                BorderStyle = BorderStyle.FixedSingle,
+                BackColor = Color.White,
+                Font = new Font("Consolas", 9F),
+                HideSelection = false
+            };
+            logGroup.Controls.Add(_iapLogTextBox);
+
             root.Controls.Add(settings, 0, 0);
-            root.Controls.Add(_iapProgressBar, 0, 1);
+            root.Controls.Add(progressLayout, 0, 1);
             root.Controls.Add(hint, 0, 2);
+            root.Controls.Add(logGroup, 0, 3);
             tabUpgrade.Controls.Add(root);
             tabControl.Controls.Add(tabUpgrade);
         }
@@ -627,14 +833,15 @@ namespace CAN_TOOLS
             button_start.Enabled = false;
             button_reset.Enabled = true;
             m_bStart = true;
+            StartDataProcessTimer();
 
             if (recv_data_thread_ == null)
             {
                 recv_data_thread_ = new RecvDataThread();
-                recv_data_thread_.SetChannelHandle(channel_handle_, channel_handle2_);
-                recv_data_thread_.SetStart(m_bStart);
                 recv_data_thread_.RecvCANData += this.AddCANData;
                 recv_data_thread_.RecvFDData += this.AddFDData;
+                recv_data_thread_.SetChannelHandle(channel_handle_, channel_handle2_);
+                recv_data_thread_.SetStart(m_bStart);
             }
             else
             {
@@ -655,6 +862,8 @@ namespace CAN_TOOLS
             button_init.Enabled = true;
             button_start.Enabled = true;
             button_reset.Enabled = false;
+            m_bStart = false;
+            StopDataProcessTimer();
 
             if (recv_data_thread_ != null)
             {
@@ -664,6 +873,8 @@ namespace CAN_TOOLS
 
         private void Button_close_Click(object? sender, EventArgs e)
         {
+            StopDataProcessTimer();
+
             if (recv_data_thread_ != null)
             {
                 recv_data_thread_.SetStart(false);
@@ -947,6 +1158,12 @@ namespace CAN_TOOLS
         // 继续添加其他必要的方法...
         private void SendSimpleCommand(byte command, uint? overrideMasterId = null)
         {
+            if (_iapUpgradeInProgress)
+            {
+                AppendIapLog("升级中，已忽略普通控制命令");
+                return;
+            }
+
             if (!m_bStart)
             {
                 MessageBox.Show("请先启动CAN", "提示", MessageBoxButtons.OK, MessageBoxIcon.Warning);
@@ -1267,6 +1484,12 @@ namespace CAN_TOOLS
 
         private void CheckBox_autoRefresh_CheckedChanged(object? sender, EventArgs e)
         {
+            if (_iapUpgradeInProgress)
+            {
+                timer1.Enabled = false;
+                return;
+            }
+
             timer1.Enabled = checkBox_autoRefresh.Checked;
             if (checkBox_autoRefresh.Checked)
             {
@@ -1352,6 +1575,13 @@ namespace CAN_TOOLS
                 // 计算总线负载
                 CalculateBusLoad();
 
+                if (_iapUpgradeInProgress)
+                {
+                    CalculateCurrentSharing();
+                    CheckCommTimeout();
+                    return;
+                }
+
                 // 发送查询命令（自动刷新固定使用 0x20 作为主机地址）
                 if (m_bStart)
                 {
@@ -1373,6 +1603,104 @@ namespace CAN_TOOLS
                 isTimerProcessing = false;
                 Monitor.Exit(timerLock);
             }
+        }
+
+        private void StopDataProcessTimer()
+        {
+            _dataProcessTimer?.Dispose();
+            _dataProcessTimer = null;
+            Interlocked.Exchange(ref _dataProcessPending, 0);
+            while (_dataQueue.TryDequeue(out _)) { }
+            Interlocked.Exchange(ref _dataQueueLength, 0);
+        }
+
+        private void StartDataProcessTimer()
+        {
+            StopDataProcessTimer();
+            _dataProcessTimer = new System.Threading.Timer(_ =>
+            {
+                if (Interlocked.Exchange(ref _dataProcessPending, 1) != 0)
+                    return;
+
+                try
+                {
+                    int queueSize = Volatile.Read(ref _dataQueueLength);
+                    if (queueSize > DATA_QUEUE_WARN_LIMIT)
+                    {
+                        Console.WriteLine($"警告：数据队列堆积 {queueSize} 条");
+                    }
+
+                    var latestFrames = new Dictionary<(uint actualId, byte command), (uint id, byte[] data, uint displayChannel)>();
+                    int processedCount = 0;
+                    DateTime now = DateTime.Now;
+
+                    while (_dataQueue.TryDequeue(out var item) && processedCount < DATA_PROCESS_BATCH_LIMIT)
+                    {
+                        Interlocked.Decrement(ref _dataQueueLength);
+                        processedCount++;
+
+                        uint actualId = GetId(item.id);
+                        uint displayChannel = RegisterId(actualId);
+                        if (displayChannel == 0 || displayChannel > CHANNEL_COUNT || item.data.Length < 2)
+                            continue;
+
+                        lock (_idMapLock)
+                        {
+                            deviceLastResponseTime[actualId] = now;
+                        }
+
+                        UpdateRealtimeModel(item.id, item.data, displayChannel, actualId);
+                        latestFrames[(actualId, item.data[1])] = (item.id, item.data, displayChannel);
+                    }
+
+                    if (latestFrames.Count == 0)
+                    {
+                        Interlocked.Exchange(ref _dataProcessPending, 0);
+                        return;
+                    }
+
+                    long nowMs = Environment.TickCount64;
+                    long lastUiRefreshMs = Interlocked.Read(ref _lastUiDataRefreshMs);
+                    if (nowMs - lastUiRefreshMs < UI_DATA_REFRESH_INTERVAL_MS ||
+                        Interlocked.CompareExchange(ref _lastUiDataRefreshMs, nowMs, lastUiRefreshMs) != lastUiRefreshMs)
+                    {
+                        Interlocked.Exchange(ref _dataProcessPending, 0);
+                        return;
+                    }
+
+                    if (IsDisposed || !IsHandleCreated)
+                    {
+                        Interlocked.Exchange(ref _dataProcessPending, 0);
+                        return;
+                    }
+
+                    BeginInvoke(new Action(() =>
+                    {
+                        try
+                        {
+                            foreach (var (id, data, displayChannel) in latestFrames.Values)
+                            {
+                                uint actualId = GetId(id);
+                                UpdateDisplay($"id_ch{displayChannel}", $"0x{actualId:X5}");
+                                ParseAndDisplayData(data, displayChannel, actualId, false);
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine($"数据解析异常: {ex.Message}");
+                        }
+                        finally
+                        {
+                            Interlocked.Exchange(ref _dataProcessPending, 0);
+                        }
+                    }));
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"数据处理异常: {ex.Message}");
+                    Interlocked.Exchange(ref _dataProcessPending, 0);
+                }
+            }, null, DATA_PROCESS_INTERVAL_MS, DATA_PROCESS_INTERVAL_MS);
         }
 
         private void CalculateBusLoad()
@@ -1612,6 +1940,9 @@ namespace CAN_TOOLS
         // 数据接收和处理方法
         private void AddCANData(ZCAN_Receive_Data[] data, uint len, uint ch)
         {
+            if (len > 0)
+                _lastCommTime[Math.Min(CHANNEL_COUNT, (int)ch + 1)] = DateTime.Now;
+
             lock (_busLoadLock)
             {
                 if (ch == 0)
@@ -1625,38 +1956,20 @@ namespace CAN_TOOLS
             {
                 ZCAN_Receive_Data can = data[i];
                 uint id = data[i].frame.can_id;
-
                 if (id == 0x0) continue;
 
-                deviceLastResponseTime[id] = DateTime.Now;
-                RegisterId(id);
-                uint channel = idToChannelMap[id];
-
-                // 立即更新 ID 显示（纯 CAN ID，去掉标志位）
-                uint pureId = GetId(id);
-                UpdateDisplay($"id_ch{channel}", $"0x{pureId:X5}");
-
-                // 读取原始数据用于日志显示
-                byte[] fdata = data[i].frame.data;
-                _iapUpgradeSession?.HandleCanFrame(pureId, fdata, can.frame.can_dlc);
-
-                string listBoxData = $"[通道{ch}] ID:0x{pureId:X5} DLC:{can.frame.can_dlc} 数据:";
-                for (uint j = 0; j < can.frame.can_dlc; ++j)
-                {
-                    listBoxData += $"{can.frame.data[j]:X2} ";
-                }
-                if (fdata != null && fdata.Length > 0)
-                    listBoxData += $"  [B0={fdata[0]:X2} ch={channel}]";
-
-                AppendRecvLog(listBoxData);
-
-                // CNT 更新只在 ParseAndDisplayData → Command_Read_Data (0x81) 里执行
-                ParseAndDisplayData(can.frame.data, channel, id);
+                byte[] frameDataCopy = new byte[8];
+                Array.Copy(can.frame.data, frameDataCopy, Math.Min(8, can.frame.data.Length));
+                _iapUpgradeSession?.HandleCanFrame(GetId(id), frameDataCopy, can.frame.can_dlc);
+                EnqueueReceivedData(id, frameDataCopy, ch);
             }
         }
 
         private void AddFDData(ZCAN_ReceiveFD_Data[] data, uint len, uint ch)
         {
+            if (len > 0)
+                _lastCommTime[Math.Min(CHANNEL_COUNT, (int)ch + 1)] = DateTime.Now;
+
             lock (_busLoadLock)
             {
                 if (ch == 0)
@@ -1673,29 +1986,67 @@ namespace CAN_TOOLS
 
                 if (id == 0x0) continue;
 
-                string eff = IsEFF(id) ? "扩展帧" : "标准帧";
-                string rtr = IsRTR(id) ? "远程帧" : "数据帧";
-
-                string listBoxData = $"[通道{ch}] 接收到CANFD ID:0x{GetId(id):X8} {eff} {rtr} 长度:{canfd.frame.len:D1} 数据:";
-                for (uint j = 0; j < canfd.frame.len; ++j)
+                if (canfd.frame.len >= 8)
                 {
-                    listBoxData += $"{canfd.frame.data[j]:X2} ";
+                    byte[] frameDataCopy = new byte[8];
+                    Array.Copy(canfd.frame.data, frameDataCopy, 8);
+                    _iapUpgradeSession?.HandleCanFrame(GetId(id), frameDataCopy, canfd.frame.len);
+                    EnqueueReceivedData(id, frameDataCopy, ch);
                 }
-
-                AppendRecvLog(listBoxData);
             }
         }
 
-        private void RegisterId(uint id)
+        private void EnqueueReceivedData(uint id, byte[] data, uint ch)
         {
-            if (!idToChannelMap.ContainsKey(id))
+            int queueLength = Interlocked.Increment(ref _dataQueueLength);
+            _dataQueue.Enqueue((id, data, ch));
+
+            if (queueLength <= DATA_QUEUE_DROP_LIMIT)
+                return;
+
+            int dropCount = Math.Min(queueLength - DATA_PROCESS_BATCH_LIMIT, DATA_PROCESS_BATCH_LIMIT);
+            for (int i = 0; i < dropCount && _dataQueue.TryDequeue(out _); i++)
+                Interlocked.Decrement(ref _dataQueueLength);
+        }
+
+        private uint RegisterId(uint id)
+        {
+            uint actualId = GetId(id);
+            lock (_idMapLock)
             {
-                registeredIds.Add(id);
-                idToChannelMap[id] = (uint)registeredIds.Count;
+                if (idToChannelMap.TryGetValue(actualId, out uint existingChannel))
+                    return existingChannel;
+
+                if (registeredIds.Count >= CHANNEL_COUNT)
+                    return 0;
+
+                uint channel = (uint)registeredIds.Count + 1;
+                registeredIds.Add(actualId);
+                idToChannelMap[actualId] = channel;
+                channelToPureId[channel] = actualId;
+                return channel;
             }
         }
 
-        private void ParseAndDisplayData(byte[] frameData, uint ch, uint id)
+        private void UpdateRealtimeModel(uint id, byte[] frameData, uint ch, uint actualId)
+        {
+            if (frameData.Length < 8 || frameData[1] != 0x81)
+                return;
+
+            ushort voltage = (ushort)(frameData[3] | (frameData[4] << 8));
+            ushort current = (ushort)(frameData[5] | (frameData[6] << 8));
+            sbyte temperature = (sbyte)frameData[7];
+            byte powerStatusByte = frameData[2];
+            double currentValue = current / 10.0 + current_offset;
+
+            if (actualId >= TARGET_ID_START && actualId <= TARGET_ID_END)
+                UpdateChannelCurrent(actualId, currentValue);
+
+            if (checkBox_dataRecord.Checked && _excelFilePath != null)
+                LogDataToExcel(actualId, voltage / 1000.0, currentValue, temperature, ch, powerStatusByte);
+        }
+
+        private void ParseAndDisplayData(byte[] frameData, uint ch, uint id, bool updateRealtimeModel = true)
         {
             if (frameData.Length < 8) return;
 
@@ -1707,7 +2058,7 @@ namespace CAN_TOOLS
                 switch (cmd_receive)
                 {
                     case 0x81:  // RETURN_BIT_POWER
-                        Command_Read_Data(id, frameData, ch);
+                        Command_Read_Data(id, frameData, ch, updateRealtimeModel);
                         break;
                     case 0x82:  // VERSION_CMD
                         Command_Read_Version(id, frameData, ch);
@@ -1757,7 +2108,7 @@ namespace CAN_TOOLS
             }
         }
 
-        private void Command_Read_Data(uint id, byte[] frameData, uint ch)
+        private void Command_Read_Data(uint id, byte[] frameData, uint ch, bool updateRealtimeModel = true)
         {
             if (frameData == null || frameData.Length < 8) return;
 
@@ -1834,13 +2185,13 @@ namespace CAN_TOOLS
             }
 
             // 更新均流度计算
-            if (actualId >= TARGET_ID_START && actualId <= TARGET_ID_END)
+            if (updateRealtimeModel && actualId >= TARGET_ID_START && actualId <= TARGET_ID_END)
             {
-                UpdateChannelCurrent(id, current / 10.0 + current_offset);
+                UpdateChannelCurrent(actualId, current / 10.0 + current_offset);
             }
 
             // Excel记录
-            if (checkBox_dataRecord.Checked && _excelFilePath != null)
+            if (updateRealtimeModel && checkBox_dataRecord.Checked && _excelFilePath != null)
             {
                 LogDataToExcel(id, voltage / 1000.0, current / 10.0, temperature, ch, powerStatusByte);
             }
@@ -2531,34 +2882,35 @@ namespace CAN_TOOLS
                 return;
             }
 
-            var selectedNodes = _iapNodesCheckedListBox?.CheckedIndices.Cast<int>().OrderBy(node => node).ToList()
-                ?? new List<int>();
-            if (selectedNodes.Count == 0)
+            byte targetAddr = _iapTargetComboBox?.SelectedItem?.ToString() == "PFC" ? (byte)1 : (byte)2;
+            string targetName = _iapTargetComboBox?.SelectedItem?.ToString() ?? "LLC";
+            int canChannel = _iapChannelComboBox?.SelectedIndex ?? 0;
+            bool legacyCanIdMode = _iapCanIdModeComboBox?.SelectedIndex == 1;
+            var selectedNodes = legacyCanIdMode
+                ? new List<int> { 0 }
+                : _iapNodesCheckedListBox?.CheckedIndices.Cast<int>().OrderBy(node => node).ToList() ?? new List<int>();
+            if (!legacyCanIdMode && selectedNodes.Count == 0)
             {
                 MessageBox.Show("请至少选择一个节点。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
             }
 
-            byte targetAddr = _iapTargetComboBox?.SelectedItem?.ToString() == "PFC" ? (byte)1 : (byte)2;
-            string targetName = _iapTargetComboBox?.SelectedItem?.ToString() ?? "LLC";
-            int canChannel = _iapChannelComboBox?.SelectedIndex ?? 0;
-            bool legacyCanIdMode = _iapCanIdModeComboBox?.SelectedIndex == 1;
-            if (legacyCanIdMode && selectedNodes.Count > 1)
-            {
-                MessageBox.Show("旧兼容ID 0xAA55 是固定CAN ID，不能区分节点。请只选择一个节点后再升级。", "提示",
-                    MessageBoxButtons.OK, MessageBoxIcon.Information);
-                return;
-            }
-
             _iapUpgradeCts = new CancellationTokenSource();
+            _iapUpgradeInProgress = true;
+            _autoRefreshWasEnabledBeforeIap = timer1.Enabled;
+            timer1.Enabled = false;
+            AppendIapLog("升级开始，已暂停自动读取和普通控制命令");
 
             SetIapControlsRunning(true);
             try
             {
                 int successCount = 0;
                 var failedNodes = new List<int>();
-                string idModeText = legacyCanIdMode ? "旧兼容ID 0xAA55" : "节点ID 0xA0000~0xA0007";
-                AppendIapLog($"开始批量升级 {targetName}，节点: {string.Join(",", selectedNodes)}，CAN ID模式: {idModeText}，采用顺序升级");
+                string idModeText = legacyCanIdMode ? "固定ID 0xAA55" : "节点ID 0xA0000~0xA0007";
+                string startText = legacyCanIdMode
+                    ? $"开始固定ID升级 {targetName}，CAN ID模式: {idModeText}"
+                    : $"开始批量升级 {targetName}，节点: {string.Join(",", selectedNodes)}，CAN ID模式: {idModeText}，采用顺序升级";
+                AppendIapLog(startText);
 
                 for (int index = 0; index < selectedNodes.Count; index++)
                 {
@@ -2568,13 +2920,16 @@ namespace CAN_TOOLS
                         ? CanIapUpgradeSession.LegacyIapCanId
                         : CanIapUpgradeSession.GetNodeCanId(nodeId);
                     int completedNodes = index;
+                    string itemName = legacyCanIdMode ? "固定ID" : $"节点{nodeId}";
 
-                    AppendIapLog($"节点{nodeId}开始，CAN ID=0x{nodeCanId:X5}，目标={targetName}");
+                    AppendIapLog($"{itemName}开始，CAN ID=0x{nodeCanId:X5}，目标={targetName}");
                     _iapUpgradeSession = new CanIapUpgradeSession(
                         nodeCanId,
                         (packet, token) => SendIapPacketByCanAsync(packet, canChannel, nodeCanId, token),
-                        text => AppendIapLog($"节点{nodeId}: {text}"),
-                        value => UpdateIapProgress((completedNodes * 100 + value) / selectedNodes.Count));
+                        text => AppendIapLog($"{itemName}: {text}"),
+                        value => UpdateIapProgress((completedNodes * 100 + value) / selectedNodes.Count),
+                        $"{targetName}_{nodeCanId:X5}_{canChannel}",
+                        token => RecoverIapCanChannelAsync(canChannel, token));
 
                     bool nodeOk;
                     try
@@ -2587,19 +2942,19 @@ namespace CAN_TOOLS
                     }
                     catch (Exception ex)
                     {
-                        AppendIapLog($"节点{nodeId}异常: {ex.Message}");
+                        AppendIapLog($"{itemName}异常: {ex.Message}");
                         nodeOk = false;
                     }
 
                     if (nodeOk)
                     {
                         successCount++;
-                        AppendIapLog($"节点{nodeId}升级成功");
+                        AppendIapLog($"{itemName}升级成功");
                     }
                     else
                     {
                         failedNodes.Add(nodeId);
-                        AppendIapLog($"节点{nodeId}升级失败，继续下一节点");
+                        AppendIapLog(legacyCanIdMode ? $"{itemName}升级失败" : $"{itemName}升级失败，继续下一节点");
                     }
 
                     UpdateIapProgress((index + 1) * 100 / selectedNodes.Count);
@@ -2607,8 +2962,10 @@ namespace CAN_TOOLS
 
                 bool ok = failedNodes.Count == 0;
                 string summary = ok
-                    ? $"批量升级完成，成功 {successCount}/{selectedNodes.Count}"
-                    : $"批量升级完成，成功 {successCount}/{selectedNodes.Count}，失败节点: {string.Join(",", failedNodes)}";
+                    ? (legacyCanIdMode ? "固定ID升级完成" : $"批量升级完成，成功 {successCount}/{selectedNodes.Count}")
+                    : (legacyCanIdMode
+                        ? "固定ID升级失败"
+                        : $"批量升级完成，成功 {successCount}/{selectedNodes.Count}，失败节点: {string.Join(",", failedNodes)}");
                 AppendIapLog(summary);
                 if (_iapStatusLabel != null)
                 {
@@ -2637,6 +2994,13 @@ namespace CAN_TOOLS
             finally
             {
                 _iapUpgradeSession = null;
+                _iapUpgradeInProgress = false;
+                if (_autoRefreshWasEnabledBeforeIap && checkBox_autoRefresh.Checked)
+                {
+                    UpdateTimerInterval();
+                    timer1.Enabled = true;
+                    AppendIapLog("升级结束，已恢复自动读取");
+                }
                 SetIapControlsRunning(false);
                 _iapUpgradeCts?.Dispose();
                 _iapUpgradeCts = null;
@@ -2656,9 +3020,51 @@ namespace CAN_TOOLS
                 int len = Math.Min(8, packet.Length - offset);
                 var frame = new byte[len];
                 Array.Copy(packet, offset, frame, 0, len);
-                SendIapCanFrame(frame, channel, canId);
+                try
+                {
+                    SendIapCanFrame(frame, channel, canId);
+                }
+                catch
+                {
+                    await RecoverIapCanChannelAsync(channel, token);
+                    SendIapCanFrame(frame, channel, canId);
+                }
                 await Task.Delay(2, token);
             }
+        }
+
+        private async Task RecoverIapCanChannelAsync(int channel, CancellationToken token)
+        {
+            token.ThrowIfCancellationRequested();
+
+            IntPtr handle = channel == 0 ? channel_handle_ : channel_handle2_;
+            if (handle == IntPtr.Zero)
+                throw new InvalidOperationException($"CAN通道{channel + 1}未初始化");
+
+            if (recv_data_thread_ != null)
+                recv_data_thread_.SetStart(false);
+
+            await Task.Delay(100, token);
+
+            if (Method.ZCAN_ResetCAN(handle) != Define.STATUS_OK)
+                throw new InvalidOperationException($"复位CAN通道{channel + 1}失败");
+
+            await Task.Delay(200, token);
+
+            if (Method.ZCAN_StartCAN(handle) != Define.STATUS_OK)
+                throw new InvalidOperationException($"启动CAN通道{channel + 1}失败");
+
+            m_bStart = true;
+            if (recv_data_thread_ == null)
+            {
+                recv_data_thread_ = new RecvDataThread();
+                recv_data_thread_.RecvCANData += this.AddCANData;
+                recv_data_thread_.RecvFDData += this.AddFDData;
+            }
+
+            recv_data_thread_.SetChannelHandle(channel_handle_, channel_handle2_);
+            recv_data_thread_.SetStart(true);
+            await Task.Delay(300, token);
         }
 
         private void SendIapCanFrame(byte[] data, int channel, uint canId)
@@ -2692,14 +3098,39 @@ namespace CAN_TOOLS
 
         private void AppendIapLog(string text)
         {
-            AppendRecvLog($"[IAP] {text}");
+            string line = $"[IAP] {text}";
+            AppendRecvLog(line);
+
+            if (_iapLogTextBox == null || !_iapLogTextBox.IsHandleCreated)
+                return;
+
+            _iapLogTextBox.BeginInvoke(new Action(() =>
+            {
+                _iapLogTextBox.AppendText($"{DateTime.Now:HH:mm:ss}  {text}{Environment.NewLine}");
+                if (_iapLogTextBox.Lines.Length > 800)
+                {
+                    int removeEnd = _iapLogTextBox.GetFirstCharIndexFromLine(200);
+                    if (removeEnd > 0)
+                    {
+                        _iapLogTextBox.Select(0, removeEnd);
+                        _iapLogTextBox.SelectedText = "";
+                    }
+                }
+                _iapLogTextBox.SelectionStart = _iapLogTextBox.TextLength;
+                _iapLogTextBox.ScrollToCaret();
+            }));
         }
 
         private void UpdateIapProgress(int value)
         {
             if (_iapProgressBar == null) return;
             int progress = Math.Max(0, Math.Min(100, value));
-            BeginInvoke(new Action(() => _iapProgressBar.Value = progress));
+            BeginInvoke(new Action(() =>
+            {
+                _iapProgressBar.Value = progress;
+                if (_iapProgressValueLabel != null)
+                    _iapProgressValueLabel.Text = $"{progress}%";
+            }));
         }
 
         private void SetIapControlsRunning(bool running)
@@ -2711,7 +3142,9 @@ namespace CAN_TOOLS
                 if (_iapTargetComboBox != null) _iapTargetComboBox.Enabled = !running;
                 if (_iapChannelComboBox != null) _iapChannelComboBox.Enabled = !running;
                 if (_iapCanIdModeComboBox != null) _iapCanIdModeComboBox.Enabled = !running;
-                if (_iapNodesCheckedListBox != null) _iapNodesCheckedListBox.Enabled = !running;
+                if (_iapNodesCheckedListBox != null)
+                    _iapNodesCheckedListBox.Enabled = !running && _iapCanIdModeComboBox?.SelectedIndex != 1;
+                checkBox_autoRefresh.Enabled = !running;
                 if (_iapStatusLabel != null)
                 {
                     _iapStatusLabel.Text = running ? "升级中..." : _iapStatusLabel.Text;

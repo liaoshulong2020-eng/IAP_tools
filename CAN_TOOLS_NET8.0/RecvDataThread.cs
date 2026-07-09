@@ -5,140 +5,151 @@ using ZLGCAN;
 
 namespace CAN_TOOLS
 {
-    //接收数据线程类
+    // CAN/CAN FD receive worker. One instance owns one background thread.
     class RecvDataThread
     {
-        [UnmanagedFunctionPointer(CallingConvention.StdCall)]
-        public delegate void RecvCANDataEventHandler(ZCAN_Receive_Data[] data, uint len, uint ch);//CAN数据接收事件委托
+        public delegate void RecvCANDataEventHandler(ZCAN_Receive_Data[] data, uint len, uint ch);
+        public delegate void RecvFDDataEventHandler(ZCAN_ReceiveFD_Data[] data, uint len, uint ch);
 
-        [UnmanagedFunctionPointer(CallingConvention.StdCall)]
-        public delegate void RecvFDDataEventHandler(ZCAN_ReceiveFD_Data[] data, uint len, uint ch);//CANFD数据接收事件委托
+        private const int TYPE_CAN = 0;
+        private const int TYPE_CANFD = 1;
+        private const uint MAX_RECEIVE_BATCH = 2500;
 
-        const int TYPE_CAN = 0;
-        const int TYPE_CANFD = 1;
+        private volatile bool m_bStart;
+        private IntPtr channel_handle_;
+        private IntPtr channel_handle2_;
+        private Thread? recv_thread_;
+        private readonly object stateLock = new object();
 
-        bool m_bStart;
-        IntPtr channel_handle_;
-        IntPtr channel_handle2_;
-        Thread? recv_thread_;
-        static readonly object locker = new object();
-        public static RecvCANDataEventHandler? OnRecvCANDataEvent;
-        public static RecvFDDataEventHandler? OnRecvFDDataEvent;
-        
-        public RecvDataThread()
-        {
-        }
-
-        public event RecvCANDataEventHandler RecvCANData
-        {
-            add { OnRecvCANDataEvent += new RecvCANDataEventHandler(value); }
-            remove { OnRecvCANDataEvent -= new RecvCANDataEventHandler(value); }
-        }
-
-        public event RecvFDDataEventHandler RecvFDData
-        {
-            add { OnRecvFDDataEvent += new RecvFDDataEventHandler(value); }
-            remove { OnRecvFDDataEvent -= new RecvFDDataEventHandler(value); }
-        }
+        public event RecvCANDataEventHandler? RecvCANData;
+        public event RecvFDDataEventHandler? RecvFDData;
 
         public void SetStart(bool start)
         {
-            m_bStart = start;
-            if (start)
+            Thread? threadToJoin = null;
+
+            lock (stateLock)
             {
-                recv_thread_ = new Thread(RecvDataFunc);
-                recv_thread_.IsBackground = true;
-                recv_thread_.Start();
-            }
-            else
-            {
-                recv_thread_?.Join();
+                if (start)
+                {
+                    if (recv_thread_?.IsAlive == true)
+                        return;
+
+                    m_bStart = true;
+                    recv_thread_ = new Thread(RecvDataFunc)
+                    {
+                        IsBackground = true,
+                        Name = "CAN receive thread"
+                    };
+                    recv_thread_.Start();
+                    return;
+                }
+
+                m_bStart = false;
+                threadToJoin = recv_thread_;
                 recv_thread_ = null;
+            }
+
+            if (threadToJoin != null && threadToJoin != Thread.CurrentThread)
+            {
+                threadToJoin.Join();
             }
         }
 
         public void SetChannelHandle(IntPtr channel_handle, IntPtr channel_handle2)
         {
-            lock(locker)
+            lock (stateLock)
             {
                 channel_handle_ = channel_handle;
                 channel_handle2_ = channel_handle2;
             }
         }
 
-        //数据接收函数
-        protected void RecvDataFunc()
+        private void RecvDataFunc()
         {
-            ZCAN_Receive_Data[] can_data = new ZCAN_Receive_Data[100];
-            ZCAN_ReceiveFD_Data[] canfd_data = new ZCAN_ReceiveFD_Data[100];
-            uint len;
             while (m_bStart)
             {
-                lock (locker)
+                IntPtr channel1;
+                IntPtr channel2;
+                lock (stateLock)
                 {
-                    len = Method.ZCAN_GetReceiveNum(channel_handle_, TYPE_CAN);
-                    if (len > 0)
-                    {
-                        int size = Marshal.SizeOf(typeof(ZCAN_Receive_Data));
-                        IntPtr ptr = Marshal.AllocHGlobal((int)len * size);
-                        len = Method.ZCAN_Receive(channel_handle_, ptr, len, 50);
-                        for (int i = 0; i < len; ++i)
-                        {
-                            can_data[i] = Marshal.PtrToStructure<ZCAN_Receive_Data>(
-                                IntPtr.Add(ptr, i * size));
-                        }
-                        OnRecvCANDataEvent?.Invoke(can_data, len, 0);
-                        Marshal.FreeHGlobal(ptr);
-                    }
-
-                    len = Method.ZCAN_GetReceiveNum(channel_handle_, TYPE_CANFD);
-                    if (len > 0)
-                    {
-                        int size = Marshal.SizeOf(typeof(ZCAN_ReceiveFD_Data));
-                        IntPtr ptr = Marshal.AllocHGlobal((int)len * size);
-                        len = Method.ZCAN_ReceiveFD(channel_handle_, ptr, len, 50);
-                        for (int i = 0; i < len; ++i)
-                        {
-                            canfd_data[i] = Marshal.PtrToStructure<ZCAN_ReceiveFD_Data>(
-                                IntPtr.Add(ptr, i * size));
-                        }
-                        OnRecvFDDataEvent?.Invoke(canfd_data, len, 0);
-                        Marshal.FreeHGlobal(ptr);
-                    }
-
-                    //CAN2
-                    len = Method.ZCAN_GetReceiveNum(channel_handle2_, TYPE_CAN);
-                    if (len > 0)
-                    {
-                        int size = Marshal.SizeOf(typeof(ZCAN_Receive_Data));
-                        IntPtr ptr = Marshal.AllocHGlobal((int)len * size);
-                        len = Method.ZCAN_Receive(channel_handle2_, ptr, len, 50);
-                        for (int i = 0; i < len; ++i)
-                        {
-                            can_data[i] = Marshal.PtrToStructure<ZCAN_Receive_Data>(
-                                IntPtr.Add(ptr, i * size));
-                        }
-                        OnRecvCANDataEvent?.Invoke(can_data, len, 1);
-                        Marshal.FreeHGlobal(ptr);
-                    }
-
-                    len = Method.ZCAN_GetReceiveNum(channel_handle2_, TYPE_CANFD);
-                    if (len > 0)
-                    {
-                        int size = Marshal.SizeOf(typeof(ZCAN_ReceiveFD_Data));
-                        IntPtr ptr = Marshal.AllocHGlobal((int)len * size);
-                        len = Method.ZCAN_ReceiveFD(channel_handle2_, ptr, len, 50);
-                        for (int i = 0; i < len; ++i)
-                        {
-                            canfd_data[i] = Marshal.PtrToStructure<ZCAN_ReceiveFD_Data>(
-                                IntPtr.Add(ptr, i * size));
-                        }
-                        OnRecvFDDataEvent?.Invoke(canfd_data, len, 1);
-                        Marshal.FreeHGlobal(ptr);
-                    }
+                    channel1 = channel_handle_;
+                    channel2 = channel_handle2_;
                 }
 
-                Thread.Sleep(10);
+                try
+                {
+                    ReceiveCan(channel1, 0);
+                    ReceiveCanFd(channel1, 0);
+                    ReceiveCan(channel2, 1);
+                    ReceiveCanFd(channel2, 1);
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"CAN接收线程异常: {ex.Message}");
+                }
+
+                Thread.Sleep(30);
+            }
+        }
+
+        private void ReceiveCan(IntPtr channelHandle, uint channel)
+        {
+            if (channelHandle == IntPtr.Zero) return;
+
+            uint pending = Method.ZCAN_GetReceiveNum(channelHandle, TYPE_CAN);
+            uint requested = Math.Min(pending, MAX_RECEIVE_BATCH);
+            if (requested == 0) return;
+
+            int itemSize = Marshal.SizeOf<ZCAN_Receive_Data>();
+            IntPtr ptr = Marshal.AllocHGlobal(checked((int)requested * itemSize));
+            try
+            {
+                uint received = Method.ZCAN_Receive(channelHandle, ptr, requested, 50);
+                received = Math.Min(received, requested);
+                if (received == 0) return;
+
+                var frames = new ZCAN_Receive_Data[received];
+                for (int i = 0; i < received; i++)
+                {
+                    frames[i] = Marshal.PtrToStructure<ZCAN_Receive_Data>(IntPtr.Add(ptr, i * itemSize));
+                }
+
+                RecvCANData?.Invoke(frames, received, channel);
+            }
+            finally
+            {
+                Marshal.FreeHGlobal(ptr);
+            }
+        }
+
+        private void ReceiveCanFd(IntPtr channelHandle, uint channel)
+        {
+            if (channelHandle == IntPtr.Zero) return;
+
+            uint pending = Method.ZCAN_GetReceiveNum(channelHandle, TYPE_CANFD);
+            uint requested = Math.Min(pending, MAX_RECEIVE_BATCH);
+            if (requested == 0) return;
+
+            int itemSize = Marshal.SizeOf<ZCAN_ReceiveFD_Data>();
+            IntPtr ptr = Marshal.AllocHGlobal(checked((int)requested * itemSize));
+            try
+            {
+                uint received = Method.ZCAN_ReceiveFD(channelHandle, ptr, requested, 50);
+                received = Math.Min(received, requested);
+                if (received == 0) return;
+
+                var frames = new ZCAN_ReceiveFD_Data[received];
+                for (int i = 0; i < received; i++)
+                {
+                    frames[i] = Marshal.PtrToStructure<ZCAN_ReceiveFD_Data>(IntPtr.Add(ptr, i * itemSize));
+                }
+
+                RecvFDData?.Invoke(frames, received, channel);
+            }
+            finally
+            {
+                Marshal.FreeHGlobal(ptr);
             }
         }
     }

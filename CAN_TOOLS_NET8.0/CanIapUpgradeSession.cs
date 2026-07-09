@@ -9,22 +9,35 @@ internal sealed class CanIapUpgradeSession
     private const uint ArgBaseAddr = 0x08007000;
     private const int AppMaxSize = 224 * 1024;
     private const int WriteSize = 128;
+    private const int MaxMainRetries = 999;
+    private const int MainRetryDelayMs = 5000;
 
     private readonly Func<byte[], CancellationToken, Task> _sendPacketAsync;
+    private readonly Func<CancellationToken, Task>? _recoverTransportAsync;
     private readonly Action<string> _log;
     private readonly Action<int> _progress;
     private readonly uint _iapCanId;
+    private readonly string _resumeKey;
     private readonly object _rxLock = new();
     private readonly List<byte> _rxBuffer = new();
     private TaskCompletionSource<byte[]>? _ackTcs;
     private byte _targetAddr;
+    private ResumeState _resumeState = new();
 
-    public CanIapUpgradeSession(uint iapCanId, Func<byte[], CancellationToken, Task> sendPacketAsync, Action<string> log, Action<int> progress)
+    public CanIapUpgradeSession(
+        uint iapCanId,
+        Func<byte[], CancellationToken, Task> sendPacketAsync,
+        Action<string> log,
+        Action<int> progress,
+        string? resumeKey = null,
+        Func<CancellationToken, Task>? recoverTransportAsync = null)
     {
         _iapCanId = iapCanId;
         _sendPacketAsync = sendPacketAsync;
         _log = log;
         _progress = progress;
+        _resumeKey = string.IsNullOrWhiteSpace(resumeKey) ? $"can_{iapCanId:X5}" : resumeKey;
+        _recoverTransportAsync = recoverTransportAsync;
     }
 
     public bool IsRunning { get; private set; }
@@ -90,15 +103,55 @@ internal sealed class CanIapUpgradeSession
 
             uint appCrc = IapCrc.Crc32(app, app.Length);
             _log($"固件加载完成: {app.Length} bytes, CRC32=0x{appCrc:X8}");
+            LoadResumeState(firmwarePath, app.Length, appCrc);
 
-            if (!await EnterIapAsync(token)) return false;
-            if (!await WriteFlashAsync(app, token)) return false;
-            if (!await WriteChecksumAsync(app.Length, appCrc, token)) return false;
-            if (!await ExitIapAsync(token)) return false;
+            for (int attempt = 1; attempt <= MaxMainRetries; attempt++)
+            {
+                token.ThrowIfCancellationRequested();
+                _log($"=== 第 {attempt} 次升级尝试 ===");
 
-            _progress(100);
-            _log("升级完成");
-            return true;
+                try
+                {
+                    if (await ExecuteUpgradeOnceAsync(app, appCrc, token))
+                    {
+                        ClearResumeState();
+                        _progress(100);
+                        _log($"升级完成，总尝试次数: {attempt}");
+                        return true;
+                    }
+                }
+                catch (OperationCanceledException)
+                {
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    _log($"第 {attempt} 次升级异常: {ex.Message}");
+                }
+
+                SaveResumeState(firmwarePath, app.Length, appCrc);
+                if (attempt >= MaxMainRetries)
+                    break;
+
+                if (_recoverTransportAsync != null)
+                {
+                    try
+                    {
+                        _log("尝试恢复 CAN 通道...");
+                        await _recoverTransportAsync(token);
+                    }
+                    catch (Exception ex)
+                    {
+                        _log($"CAN 通道恢复失败: {ex.Message}");
+                    }
+                }
+
+                _log($"第 {attempt} 次尝试失败，{MainRetryDelayMs / 1000}秒后自动重试");
+                await Task.Delay(MainRetryDelayMs, token);
+            }
+
+            _log($"升级失败，已达到最大尝试次数 {MaxMainRetries}");
+            return false;
         }
         finally
         {
@@ -109,6 +162,15 @@ internal sealed class CanIapUpgradeSession
                 _ackTcs = null;
             }
         }
+    }
+
+    private async Task<bool> ExecuteUpgradeOnceAsync(byte[] app, uint appCrc, CancellationToken token)
+    {
+        if (!await EnterIapAsync(token)) return false;
+        if (!await WriteFlashAsync(app, token)) return false;
+        if (!await WriteChecksumAsync(app.Length, appCrc, token)) return false;
+        if (!await ExitIapAsync(token)) return false;
+        return true;
     }
 
     private static async Task<byte[]> LoadFirmwareAsync(string path, CancellationToken token)
@@ -142,7 +204,15 @@ internal sealed class CanIapUpgradeSession
     private async Task<bool> WriteFlashAsync(byte[] app, CancellationToken token)
     {
         _log("开始写 Flash...");
-        int index = 0;
+        int index = GetResumeIndex(app.Length);
+        if (index > 0)
+        {
+            uint resumeAddr = AppBaseAddr + (uint)index;
+            int resumePercent = Math.Min(99, index * 100 / app.Length);
+            _progress(resumePercent);
+            _log($"从断点续传: {resumePercent}%, 地址 0x{resumeAddr:X8}");
+        }
+
         while (index < app.Length)
         {
             token.ThrowIfCancellationRequested();
@@ -165,11 +235,16 @@ internal sealed class CanIapUpgradeSession
 
             if (!ok)
             {
+                _resumeState.LastWrittenIndex = index;
+                SaveResumeState();
                 _log($"写 Flash 失败: 0x{addr:X8}");
                 return false;
             }
 
             index += WriteSize;
+            _resumeState.LastWrittenIndex = Math.Min(index, app.Length);
+            SaveResumeState();
+
             int percent = Math.Min(99, index * 100 / app.Length);
             _progress(percent);
             if (percent % 10 == 0)
@@ -228,6 +303,95 @@ internal sealed class CanIapUpgradeSession
         return completed == tcs.Task ? await tcs.Task : null;
     }
 
+    private int GetResumeIndex(int appLength)
+    {
+        int index = Math.Max(0, Math.Min(_resumeState.LastWrittenIndex, appLength));
+        return index / WriteSize * WriteSize;
+    }
+
+    private string ResumeStatePath
+    {
+        get
+        {
+            string dir = Path.Combine(AppContext.BaseDirectory, "iap_resume");
+            Directory.CreateDirectory(dir);
+            string safeName = string.Concat(_resumeKey.Select(ch =>
+                char.IsLetterOrDigit(ch) || ch == '_' || ch == '-' ? ch : '_'));
+            return Path.Combine(dir, safeName + ".json");
+        }
+    }
+
+    private void LoadResumeState(string firmwarePath, int appLength, uint appCrc)
+    {
+        _resumeState = new ResumeState
+        {
+            FirmwarePath = firmwarePath,
+            AppLength = appLength,
+            AppCrc = appCrc,
+            LastWrittenIndex = 0
+        };
+
+        try
+        {
+            string path = ResumeStatePath;
+            if (!File.Exists(path))
+                return;
+
+            string json = File.ReadAllText(path);
+            ResumeState? saved = System.Text.Json.JsonSerializer.Deserialize<ResumeState>(json);
+            if (saved == null ||
+                !string.Equals(Path.GetFullPath(saved.FirmwarePath ?? string.Empty), Path.GetFullPath(firmwarePath), StringComparison.OrdinalIgnoreCase) ||
+                saved.AppLength != appLength ||
+                saved.AppCrc != appCrc ||
+                saved.LastWrittenIndex <= 0)
+            {
+                return;
+            }
+
+            _resumeState = saved;
+            _log($"发现断点续传状态: {Math.Min(99, saved.LastWrittenIndex * 100 / appLength)}%, 地址 0x{AppBaseAddr + (uint)saved.LastWrittenIndex:X8}");
+        }
+        catch (Exception ex)
+        {
+            _log($"读取断点续传状态失败: {ex.Message}");
+        }
+    }
+
+    private void SaveResumeState(string? firmwarePath = null, int? appLength = null, uint? appCrc = null)
+    {
+        try
+        {
+            if (firmwarePath != null) _resumeState.FirmwarePath = firmwarePath;
+            if (appLength.HasValue) _resumeState.AppLength = appLength.Value;
+            if (appCrc.HasValue) _resumeState.AppCrc = appCrc.Value;
+
+            string json = System.Text.Json.JsonSerializer.Serialize(_resumeState, new System.Text.Json.JsonSerializerOptions
+            {
+                WriteIndented = true
+            });
+            File.WriteAllText(ResumeStatePath, json);
+        }
+        catch (Exception ex)
+        {
+            _log($"保存断点续传状态失败: {ex.Message}");
+        }
+    }
+
+    private void ClearResumeState()
+    {
+        _resumeState.LastWrittenIndex = 0;
+        try
+        {
+            string path = ResumeStatePath;
+            if (File.Exists(path))
+                File.Delete(path);
+        }
+        catch (Exception ex)
+        {
+            _log($"清除断点续传状态失败: {ex.Message}");
+        }
+    }
+
     private byte[] BuildPacket(ushort cmd, uint addr, ushort len, byte[] data)
     {
         ushort size = (ushort)data.Length;
@@ -247,6 +411,7 @@ internal sealed class CanIapUpgradeSession
     private static ushort GetCmd(byte[] packet) => (ushort)(packet[2] | (packet[3] << 8));
     private static uint GetAddr(byte[] packet) => (uint)(packet[4] | (packet[5] << 8) | (packet[6] << 16) | (packet[7] << 24));
     private static ushort GetLen(byte[] packet) => (ushort)(packet[8] | (packet[9] << 8));
+
     private static void WriteUInt16(byte[] data, int offset, ushort value)
     {
         data[offset] = (byte)value;
@@ -259,5 +424,13 @@ internal sealed class CanIapUpgradeSession
         data[offset + 1] = (byte)(value >> 8);
         data[offset + 2] = (byte)(value >> 16);
         data[offset + 3] = (byte)(value >> 24);
+    }
+
+    private sealed class ResumeState
+    {
+        public string? FirmwarePath { get; set; }
+        public int AppLength { get; set; }
+        public uint AppCrc { get; set; }
+        public int LastWrittenIndex { get; set; }
     }
 }
