@@ -8,10 +8,13 @@ internal sealed class CanIapUpgradeSession
     private const uint AppBaseAddr = 0x08008000;
     private const uint ArgBaseAddr = 0x08007000;
     private const int AppMaxSize = 224 * 1024;
-    private const int WriteSize = 128;
-    private const int MaxMainRetries = 999;
+    private const int WriteSize = 64;
+    private const int MaxMainRetries = 3;
     private const int MainRetryDelayMs = 5000;
-    private const int WriteRetryDelayMs = 200;
+    private const int WriteRetryDelayMs = 300;
+    private const int EnterProbeCount = 18;
+    private const int EnterProbeDelayMs = 120;
+    private const int EnterProbeAckTimeoutMs = 260;
 
     private readonly Func<byte[], CancellationToken, Task> _sendPacketAsync;
     private readonly Func<CancellationToken, Task>? _recoverTransportAsync;
@@ -46,6 +49,8 @@ internal sealed class CanIapUpgradeSession
     public void HandleCanFrame(uint id, byte[] data, int length)
     {
         if (id != _iapCanId || length <= 0) return;
+        int safeLength = Math.Min(length, data.Length);
+        _log($"RX IAP帧 ID=0x{id:X5}, LEN={length}, DATA={BitConverter.ToString(data, 0, Math.Min(safeLength, 8))}");
         HandleBytes(data, length);
     }
 
@@ -72,6 +77,7 @@ internal sealed class CanIapUpgradeSession
             int payloadSize = _rxBuffer[10] | (_rxBuffer[11] << 8);
             if (payloadSize < 0 || payloadSize > 256)
             {
+                _log($"IAP接收缓存长度异常 size={payloadSize}，已清空");
                 _rxBuffer.Clear();
                 return;
             }
@@ -85,7 +91,14 @@ internal sealed class CanIapUpgradeSession
             ushort crcRx = (ushort)(packet[^2] | (packet[^1] << 8));
             ushort crcCalc = IapCrc.Crc16(packet, packet.Length - 2);
             if (crcRx == crcCalc)
+            {
+                _log($"RX IAP包 CMD={GetCmd(packet)}, ADDR=0x{GetAddr(packet):X8}, LEN={GetLen(packet)}, SIZE={payloadSize}");
                 _ackTcs?.TrySetResult(packet);
+            }
+            else
+            {
+                _log($"IAP包CRC错误 RX=0x{crcRx:X4}, CALC=0x{crcCalc:X4}, LEN={packet.Length}");
+            }
         }
     }
 
@@ -168,6 +181,7 @@ internal sealed class CanIapUpgradeSession
     private async Task<bool> ExecuteUpgradeOnceAsync(byte[] app, uint appCrc, CancellationToken token)
     {
         if (!await EnterIapAsync(token)) return false;
+
         if (!await WriteFlashAsync(app, token)) return false;
         if (!await WriteChecksumAsync(app.Length, appCrc, token)) return false;
         if (!await ExitIapAsync(token)) return false;
@@ -186,20 +200,37 @@ internal sealed class CanIapUpgradeSession
     {
         _log("进入 IAP...");
         byte[] data = { 1 };
-        for (int i = 0; i < 30; i++)
-        {
-            byte[]? ack = await SendAndWaitAsync(BuildPacket(1, 0, 1, data), TimeSpan.FromMilliseconds(1000), token);
-            if (ack != null && GetCmd(ack) == 1 && ack.Length > 12 && ack[12] == 1)
-            {
-                _log("已进入 IAP");
-                return true;
-            }
+        byte[] packet = BuildPacket(1, 0, 1, data);
 
-            await Task.Delay(150, token);
+        _log("发送进入 IAP 命令，触发 APP 复位...");
+        byte[]? ack = await SendAndWaitAsync(packet, TimeSpan.FromMilliseconds(EnterProbeAckTimeoutMs), token);
+        if (IsEnterAck(ack))
+        {
+            _log("已进入 IAP");
+            await Task.Delay(500, token);
+            return true;
         }
 
-        _log("进入 IAP 超时");
+        _log("等待 bootloader 启动并确认 IAP...");
+        for (int probe = 1; probe <= EnterProbeCount; probe++)
+        {
+            await Task.Delay(EnterProbeDelayMs, token);
+            ack = await SendAndWaitAsync(packet, TimeSpan.FromMilliseconds(EnterProbeAckTimeoutMs), token);
+            if (IsEnterAck(ack))
+            {
+                _log($"bootloader 已进入 IAP，握手次数 {probe}");
+                await Task.Delay(500, token);
+                return true;
+            }
+        }
+
+        _log("未收到 bootloader 进入确认，停止本次尝试，避免继续反复复位");
         return false;
+    }
+
+    private static bool IsEnterAck(byte[]? ack)
+    {
+        return ack != null && GetCmd(ack) == 1 && ack.Length > 12 && ack[12] == 1;
     }
 
     private async Task<bool> WriteFlashAsync(byte[] app, CancellationToken token)

@@ -3014,7 +3014,7 @@ namespace CAN_TOOLS
 
         private async Task SendIapPacketByCanAsync(byte[] packet, int channel, uint canId, CancellationToken token)
         {
-            const int iapCanFrameDelayMs = 5;
+            const int iapCanFrameDelayMs = 4;
             const int iapPacketGapMs = 20;
 
             for (int offset = 0; offset < packet.Length; offset += 8)
