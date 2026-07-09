@@ -40,3 +40,7 @@ desktop.ini
 *.rar
 *.zip
 *.7z
+
+# Visual Studio user-local files
+*.csproj.user
+**/.vs/
