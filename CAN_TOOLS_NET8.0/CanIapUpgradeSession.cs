@@ -8,7 +8,7 @@ internal sealed class CanIapUpgradeSession
     private const uint AppBaseAddr = 0x08008000;
     private const uint ArgBaseAddr = 0x08007000;
     private const int AppMaxSize = 224 * 1024;
-    private const int WriteSize = 64;
+    private const int WriteSize = 96;
     private const int MaxMainRetries = 3;
     private const int MainRetryDelayMs = 5000;
     private const int WriteRetryDelayMs = 300;
@@ -49,8 +49,6 @@ internal sealed class CanIapUpgradeSession
     public void HandleCanFrame(uint id, byte[] data, int length)
     {
         if (id != _iapCanId || length <= 0) return;
-        int safeLength = Math.Min(length, data.Length);
-        _log($"RX IAP帧 ID=0x{id:X5}, LEN={length}, DATA={BitConverter.ToString(data, 0, Math.Min(safeLength, 8))}");
         HandleBytes(data, length);
     }
 
@@ -92,7 +90,6 @@ internal sealed class CanIapUpgradeSession
             ushort crcCalc = IapCrc.Crc16(packet, packet.Length - 2);
             if (crcRx == crcCalc)
             {
-                _log($"RX IAP包 CMD={GetCmd(packet)}, ADDR=0x{GetAddr(packet):X8}, LEN={GetLen(packet)}, SIZE={payloadSize}");
                 _ackTcs?.TrySetResult(packet);
             }
             else

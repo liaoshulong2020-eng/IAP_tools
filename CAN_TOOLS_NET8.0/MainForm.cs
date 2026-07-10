@@ -409,7 +409,8 @@ namespace CAN_TOOLS
                 ColumnCount = 1,
                 RowCount = 4,
                 Padding = new Padding(14),
-                BackColor = Color.FromArgb(247, 248, 250)
+                BackColor = Color.FromArgb(247, 248, 250),
+                AutoScroll = true
             };
             root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, 48));
@@ -489,22 +490,27 @@ namespace CAN_TOOLS
             };
             _iapNodesCheckedListBox = new CheckedListBox
             {
-                Size = new Size(590, 34),
+                Size = new Size(640, 44),
+                MinimumSize = new Size(360, 44),
+                IntegralHeight = false,
                 CheckOnClick = true,
                 MultiColumn = true,
-                ColumnWidth = 68,
+                ColumnWidth = 76,
                 Margin = new Padding(0, 0, 12, 0)
             };
+            _iapNodesCheckedListBox.Height = Math.Max(44, _iapNodesCheckedListBox.ItemHeight + 14);
+            nodeRow.MinimumSize = new Size(0, _iapNodesCheckedListBox.Height + 4);
             for (int node = 0; node < 8; node++)
             {
-                _iapNodesCheckedListBox.Items.Add($"节点{node}", true);
+                _iapNodesCheckedListBox.Items.Add($"节点{node}", false);
             }
             var selectAllNodesButton = new Button { Text = "全选", Size = new Size(70, 28), Margin = new Padding(0, 2, 0, 0) };
             selectAllNodesButton.Click += (_, _) =>
             {
                 if (_iapNodesCheckedListBox == null) return;
+                bool shouldCheck = _iapNodesCheckedListBox.CheckedItems.Count != _iapNodesCheckedListBox.Items.Count;
                 for (int i = 0; i < _iapNodesCheckedListBox.Items.Count; i++)
-                    _iapNodesCheckedListBox.SetItemChecked(i, true);
+                    _iapNodesCheckedListBox.SetItemChecked(i, shouldCheck);
             };
             nodeRow.Controls.Add(_iapNodesCheckedListBox);
             nodeRow.Controls.Add(selectAllNodesButton);
@@ -3014,8 +3020,8 @@ namespace CAN_TOOLS
 
         private async Task SendIapPacketByCanAsync(byte[] packet, int channel, uint canId, CancellationToken token)
         {
-            const int iapCanFrameDelayMs = 4;
-            const int iapPacketGapMs = 20;
+            const int iapCanFrameDelayMs = 2;
+            const int iapPacketGapMs = 8;
 
             for (int offset = 0; offset < packet.Length; offset += 8)
             {
