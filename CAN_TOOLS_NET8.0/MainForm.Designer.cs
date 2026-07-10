@@ -3458,6 +3458,8 @@ namespace CAN_TOOLS
             // 
             // checkBox_ch1Enable
             // 
+            checkBox_ch1Enable.Checked = true;
+            checkBox_ch1Enable.CheckState = CheckState.Checked;
             checkBox_ch1Enable.Location = new Point(10, 32);
             checkBox_ch1Enable.Name = "checkBox_ch1Enable";
             checkBox_ch1Enable.Size = new Size(20, 23);
@@ -3501,6 +3503,8 @@ namespace CAN_TOOLS
             // 
             // checkBox_ch2Enable
             // 
+            checkBox_ch2Enable.Checked = true;
+            checkBox_ch2Enable.CheckState = CheckState.Checked;
             checkBox_ch2Enable.Location = new Point(10, 66);
             checkBox_ch2Enable.Name = "checkBox_ch2Enable";
             checkBox_ch2Enable.Size = new Size(20, 23);
