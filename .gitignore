@@ -24,6 +24,12 @@
 # .NET编译输出
 **/bin/
 **/obj/
+**/iap_resume/
+
+# Codex/临时发布输出
+obj_codex_int/
+obj_codex_out/
+CAN_TOOLS_IAP_*版/
 
 # VS临时文件
 .vs/
@@ -41,9 +47,17 @@ desktop.ini
 *.zip
 *.7z
 
+# 本地参考资料/历史备份，体积过大，不直接提交到 GitHub
+6.官方SDK/**
+!6.官方SDK/
+!6.官方SDK/README_目录说明.md
+3. bootloader/历史备份_未整理/**
+5.原副边程序/历史旧版_原目录/**
+
 # Visual Studio user-local files
 *.csproj.user
 **/.vs/
 
-# Required runtime dependency for CAN_TOOLS_NET8.0
+# 必要运行依赖：CAN上位机需要周立功 ControlCANFD.dll
+!CAN_TOOLS_NET8.0/dll/
 !CAN_TOOLS_NET8.0/dll/ControlCANFD.dll

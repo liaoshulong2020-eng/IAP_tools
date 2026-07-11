@@ -1,0 +1,97 @@
+T1A0B8 000:005.580   SEGGER J-Link V7.94l Log File
+T1A0B8 000:005.701   DLL Compiled: Feb 29 2024 10:21:21
+T1A0B8 000:005.711   Logging started @ 2026-06-24 06:17
+T1A0B8 000:005.720   Process: C:\Keil_v5\UV4\UV4.exe
+T1A0B8 000:005.731 - 5.729ms
+T1A0B8 000:005.745 JLINK_SetWarnOutHandler(...)
+T1A0B8 000:005.754 - 0.010ms
+T1A0B8 000:005.763 JLINK_OpenEx(...)
+T1A0B8 000:009.599   Firmware: J-Link V13 compiled Jun 24 2025 16:10:00
+T1A0B8 000:010.690   Firmware: J-Link V13 compiled Jun 24 2025 16:10:00
+T1A0B8 000:012.571   Hardware: V13.00
+T1A0B8 000:012.664   S/N: 601000179
+T1A0B8 000:012.680   OEM: SEGGER
+T1A0B8 000:012.696   Feature(s): RDI, FlashBP, FlashDL, JFlash, GDB
+T1A0B8 000:014.182   Bootloader: 2018 Jun 03
+T1A0B8 000:016.592   USB speed mode: High speed (480 MBit/s)
+T1A0B8 000:016.989   TELNET listener socket opened on port 19021
+T1A0B8 000:017.111   WEBSRV WEBSRV_Init(): Starting webserver thread(s)
+T1A0B8 000:019.388   WEBSRV Webserver running on local port 19080
+T1A0B8 000:019.505   Looking for J-Link GUI Server exe at: C:\Keil_v5\ARM\Segger\JLinkGUIServer.exe
+T1A0B8 000:019.611   Looking for J-Link GUI Server exe at: C:\Program Files\SEGGER\JLink_V794l\JLinkGUIServer.exe
+T1A0B8 000:019.656   Forking J-Link GUI Server: C:\Program Files\SEGGER\JLink_V794l\JLinkGUIServer.exe
+T1A0B8 001:125.382   J-Link GUI Server info: "J-Link GUI server V7.94l "
+T1A0B8 001:130.757 - 1124.986ms returns "O.K."
+T1A0B8 001:130.793 JLINK_GetEmuCaps()
+T1A0B8 001:130.799 - 0.004ms returns 0xB9FF7BBF
+T1A0B8 001:130.805 JLINK_TIF_GetAvailable(...)
+T1A0B8 001:131.149 - 0.343ms
+T1A0B8 001:131.172 JLINK_SetErrorOutHandler(...)
+T1A0B8 001:131.176 - 0.004ms
+T1A0B8 001:131.195 JLINK_ExecCommand("ProjectFile = "D:\work\lsl\1.project\18.227B\2.software\2.llc\4.227B-T\1.227B-T_llc_A03_V_1_2_0_20260624_release\ProjectTemplate\Project\MDK\JLinkSettings.ini"", ...). 
+T1A0B8 001:144.871   Ref file found at: C:\Keil_v5\ARM\Segger\JLinkDevices.ref
+T1A0B8 001:144.975   REF file references invalid XML file: C:\Program Files\SEGGER\JLink_V794l\JLinkDevices.xml
+T1A0B8 001:149.142   Device "CORTEX-M4" selected.
+T1A0B8 001:149.746 - 18.552ms returns 0x00
+T1A0B8 001:151.593 JLINK_ExecCommand("Device = TAE32G5800", ...). 
+T1A0B8 001:153.490   Device "CORTEX-M4" selected.
+T1A0B8 001:153.906 - 2.299ms returns 0x00
+T1A0B8 001:153.928 JLINK_ExecCommand("DisableConnectionTimeout", ...). 
+T1A0B8 001:153.934 - 0.001ms returns 0x01
+T1A0B8 001:153.939 JLINK_GetHardwareVersion()
+T1A0B8 001:153.945 - 0.003ms returns 130000
+T1A0B8 001:153.949 JLINK_GetDLLVersion()
+T1A0B8 001:153.952 - 0.003ms returns 79412
+T1A0B8 001:153.956 JLINK_GetOEMString(...)
+T1A0B8 001:153.960 JLINK_GetFirmwareString(...)
+T1A0B8 001:153.963 - 0.003ms
+T1A0B8 001:159.279 JLINK_GetDLLVersion()
+T1A0B8 001:159.292 - 0.013ms returns 79412
+T1A0B8 001:159.297 JLINK_GetCompileDateTime()
+T1A0B8 001:159.300 - 0.003ms
+T1A0B8 001:160.532 JLINK_GetFirmwareString(...)
+T1A0B8 001:160.543 - 0.011ms
+T1A0B8 001:162.452 JLINK_GetHardwareVersion()
+T1A0B8 001:162.465 - 0.012ms returns 130000
+T1A0B8 001:163.645 JLINK_GetSN()
+T1A0B8 001:163.656 - 0.011ms returns 601000179
+T1A0B8 001:164.825 JLINK_GetOEMString(...)
+T1A0B8 001:167.124 JLINK_TIF_Select(JLINKARM_TIF_SWD)
+T1A0B8 001:168.377 - 1.250ms returns 0x00
+T1A0B8 001:168.388 JLINK_HasError()
+T1A0B8 001:168.399 JLINK_SetSpeed(50000)
+T1A0B8 001:168.607 - 0.209ms
+T1A0B8 001:168.613 JLINK_GetId()
+T1A0B8 001:375.370   
+  ***** Warning: 
+T1A0B8 001:375.393   RESET (pin 15) high, but should be low. Please check target hardware.
+T1A0B8 001:479.263   Failed to attach to CPU. Trying connect under reset.
+T1A0B8 001:852.355   
+  ***** Warning: 
+T1A0B8 001:852.373   RESET (pin 15) high, but should be low. Please check target hardware.
+T1A0B8 002:375.802   
+  ***** Warning: 
+T1A0B8 002:375.826   RESET (pin 15) high, but should be low. Please check target hardware.
+T1A0B8 002:841.901   
+  ***** Warning: 
+T1A0B8 002:841.930   RESET (pin 15) high, but should be low. Please check target hardware.
+T1A0B8 003:148.670   
+  ***** Warning: 
+T1A0B8 003:148.728   RESET (pin 15) high, but should be low. Please check target hardware.
+T1A0B8 003:456.179   
+  ***** Warning: 
+T1A0B8 003:456.203   RESET (pin 15) high, but should be low. Please check target hardware.
+T1A0B8 003:762.172   
+  ***** Warning: 
+T1A0B8 003:762.197   RESET (pin 15) high, but should be low. Please check target hardware.
+T1A0B8 004:069.652   
+  ***** Warning: 
+T1A0B8 004:069.676   RESET (pin 15) high, but should be low. Please check target hardware.
+T1A0B8 004:449.253   
+  ***** Warning: 
+T1A0B8 004:449.273   RESET (pin 15) high, but should be low. Please check target hardware.
+T1A0B8 004:551.673 - 3383.058ms returns 0x00000000
+T1A0B8 009:974.938 JLINK_Close()
+T1A0B8 009:987.855 - 12.915ms
+T1A0B8 009:987.872   
+T1A0B8 009:987.875   Closed

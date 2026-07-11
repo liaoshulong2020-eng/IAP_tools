@@ -1,0 +1,309 @@
+#include "main.h"
+#include "pid_app.h"
+
+RAMCODE
+void llc_PI_iloop(void)
+{
+  int32_t  i_mul, i_out, pi_out, data_error; //p_out,
+
+  llc.iloop.data_error = llc.ibus_ref - llc.iout_rel;	//误差
+
+  llc.iloop.kp =	llc.iloop_kp_init;
+  llc.iloop.ki =	llc.iloop_ki_init;
+
+  llc.iloop.p_out = (llc.iloop.data_error * llc.iloop.kp);		//计算p_out
+
+  i_mul = (llc.iloop.data_error * llc.iloop.ki) * (llc.iloop.integral_en_k);	//计算 i_out
+
+  i_out = i_mul + llc.iloop.integral;					//计算 i_out
+
+  if(i_out > (llc.iloop.integral_max))
+    {
+      i_out = (llc.iloop.integral_max);
+      llc.iloop.integral_inside_flag = false;		//饱和
+    }
+  else if(i_out < (llc.iloop.integral_min))
+    {
+      i_out = (llc.iloop.integral_min);
+      llc.iloop.integral_inside_flag = false;
+    }
+  else
+    {
+      llc.iloop.integral_inside_flag = true;			//未饱和
+    }
+  llc.iloop.integral = i_out;						//赋值 i_out
+//  llc.iloop.integral_storage	= i_out;		//储存 i_out
+  if(((llc.iloop.p_out + llc.iloop.integral)) > llc.iloop.out_max)
+    {
+      pi_out = (llc.iloop.out_max);
+      llc.iloop.out_inside_flag = false;
+    }
+  else if(((llc.iloop.p_out + llc.iloop.integral)) < (llc.iloop.out_min))
+    {
+      pi_out = (llc.iloop.out_min);
+      llc.iloop.out_inside_flag = false;
+    }
+  else
+    {
+      pi_out = (llc.iloop.p_out + llc.iloop.integral) ;
+      llc.iloop.out_inside_flag = true;	//计算 pid_out 并限制幅度
+    }
+  if(((llc.iloop.p_out >= 0) && (i_out >= 0)) || (llc.iloop.p_out < 0) && (i_out < 0))
+    {
+      llc.iloop.twopart_no_same_flag = false;
+    }
+  else
+    {
+      llc.iloop.twopart_no_same_flag = true;
+    }
+  if((llc.iloop.out_inside_flag == true) && ((llc.iloop.integral_inside_flag) || (llc.iloop.twopart_no_same_flag)))
+    {
+      llc.iloop.integral_en_k = 1;
+    }
+  else
+    {
+      llc.iloop.integral_en_k = 0;
+    }
+  llc.iloop.loop_out = pi_out;
+
+}
+
+
+float kp_h = 60000.0f, ki_h=500.0f;
+#define KP_INCREMENT (50)
+#define KP_MAX (2500)
+#define KP_MIN 300
+#define KI_INCREMENT 1
+#define KI_MAX 60
+#define KI_MIN 50
+RAMCODE
+void llc_PI_vloop(void)
+{
+  const float ERROR_LOW = 0.05f;
+  const float ERROR_HIGH = 0.3f;
+  const float KP_LOW = 300.0f, KP_HIGH = 8000.0f;
+  const float KI_LOW = 50.0f, KI_HIGH = 320.0f;
+  float transition_factor;
+
+  float  i_mul, i_out, pi_out; //p_out,
+
+
+  llc.vloop.data_error = llc.vbus_ref + llc.delta_voltage - llc.vbus_rel;	//误差
+
+  llc.error_abs = abs_f(llc.vloop.data_error);
+
+  if(llc.state == state_rampup)
+    {
+      llc.vloop.kp = 800.0f;
+      llc.vloop.ki = 20.0f;
+    }
+  else if(llc.state == state_on)
+    {
+			if(llc.vbus_target > VOUT_UP_VOLTAGE)
+			{
+				llc.vloop.kp = 200.0f;//llc.vloop_kp_init;
+        llc.vloop.ki = 5.0f;//llc.vloop_ki_init;
+			}
+			else
+      if(llc.vbus_target < VOUT_DOWM_VOLTAGE)
+        {
+          llc.vloop.kp = 1500.0f;////600.0f;
+          llc.vloop.ki = 60.0f;//llc.vloop_ki_init;////50.0f;
+        }
+      else
+        {
+          if(llc.vloop.data_error > 0.8)
+            {
+              llc.vloop.kp = 1800.0f;//12000.0f;
+              llc.vloop.ki = 50.0f;//200.0f;
+            }
+          else if(llc.vloop.data_error > 0.5)
+            {
+              llc.vloop.kp = 1500.0f;
+              llc.vloop.ki = 50.0f;
+            }
+          else if((llc.vloop.data_error > 0.3))
+            {
+              llc.vloop.kp = 800.0f;
+              llc.vloop.ki = 50.0f;
+            }
+          else
+            {
+              llc.vloop.kp = 200.0f;////600.0f;
+              llc.vloop.ki = 50.0f;////50.0f;
+            }
+        }
+    }
+
+  llc.vloop.p_out = (llc.vloop.data_error * llc.vloop.kp);		//计算p_out
+
+  i_mul = (llc.vloop.data_error * llc.vloop.ki) * (llc.vloop.integral_en_k);	//计算 i_out
+
+  i_out = i_mul + llc.vloop.integral;					//计算 i_out
+
+  if(i_out > (llc.vloop.integral_max))
+    {
+      i_out = (llc.vloop.integral_max);
+      llc.vloop.integral_inside_flag = false;		//饱和
+    }
+  else if(i_out < (llc.vloop.integral_min))
+    {
+      i_out = (llc.vloop.integral_min);
+      llc.vloop.integral_inside_flag = false;
+    }
+  else
+    {
+      llc.vloop.integral_inside_flag = true;			//未饱和
+    }
+  llc.vloop.integral = i_out;						//赋值 i_out
+//  llc.vloop.integral_storage	= i_out;		//储存 i_out
+  if(((llc.vloop.p_out + llc.vloop.integral)) > llc.vloop.out_max)
+    {
+      pi_out = (llc.vloop.out_max);
+      llc.vloop.out_inside_flag = false;
+    }
+  else if(((llc.vloop.p_out + llc.vloop.integral)) < (llc.vloop.out_min))
+    {
+      pi_out = (llc.vloop.out_min);
+      llc.vloop.out_inside_flag = false;
+    }
+  else
+    {
+      pi_out = (llc.vloop.p_out + llc.vloop.integral) ;
+      llc.vloop.out_inside_flag = true;	//计算 pid_out 并限制幅度
+    }
+  if(((llc.vloop.p_out >= 0) && (i_out >= 0)) || (llc.vloop.p_out < 0) && (i_out < 0))
+    {
+      llc.vloop.twopart_no_same_flag = false;
+    }
+  else
+    {
+      llc.vloop.twopart_no_same_flag = true;
+    }
+  if((llc.vloop.out_inside_flag == true) && ((llc.vloop.integral_inside_flag) || (llc.vloop.twopart_no_same_flag)))
+    {
+      llc.vloop.integral_en_k = 1;
+    }
+  else
+    {
+      llc.vloop.integral_en_k = 0;
+    }
+  llc.vloop.loop_out = pi_out;
+
+}
+
+
+static uint32_t share_out_cnt;
+RAMCODE
+void llc_PI_Shareloop(void)
+{
+
+  llc.shareloop.data_error = 0;
+
+  llc.shareloop.data_error = llc.shareloop.ref - llc.shareloop.rel;	//总线电流-模块电流
+
+	if(llc.state == state_rampup)
+	{
+		llc.shareloop.kp = 100.0f;
+		llc.shareloop.ki = 1000.0f;//llc.shareloop_ki_init;//120.0f;
+		llc.shareloop.out_max = 0.2f;
+		llc.shareloop.out_min = -llc.shareloop.out_max;
+	}	
+	else
+	{
+		share_out_cnt++;
+		if(share_out_cnt>10)
+		{
+			llc.shareloop.out_max += 0.0001f;
+			share_out_cnt = 0;
+		}
+//		llc.shareloop.out_max = llc.shareloop_out_max_init;
+//		llc.shareloop.out_max = 4.0f;
+		if(llc.shareloop.out_max > 4.0f)
+		{
+			llc.shareloop.out_max = 4.0f;
+		}
+		llc.shareloop.out_min = -llc.shareloop.out_max;
+		
+		if(llc.shareloop.data_error + 1.0f < 0 )
+		{
+			llc.shareloop.kp = 120.f;
+			llc.shareloop.ki = 10.0f;
+		}
+		else
+		{
+			llc.shareloop.kp = 20.0f;
+			llc.shareloop.ki = 70.0f;
+		}
+//			llc.shareloop.kp = 120.f;
+//			llc.shareloop.ki = 10.0f;
+		
+//		llc.shareloop.kp = llc.shareloop_kp_init;
+//		llc.shareloop.ki = llc.shareloop_ki_init;
+	}
+
+	
+	
+  llc.shareloop.p_out = llc.shareloop.kp * llc.shareloop.data_error;
+
+  llc.shareloop.integral += llc.shareloop.ki * llc.shareloop.data_error;
+
+  if(llc.shareloop.integral > llc.shareloop.out_max)
+    {
+      llc.shareloop.integral = llc.shareloop.out_max;
+
+    }
+  else if(llc.shareloop.integral < llc.shareloop.out_min)
+    {
+      llc.shareloop.integral = llc.shareloop.out_min;
+    }
+
+  llc.shareloop.loop_out = (llc.shareloop.p_out + llc.shareloop.integral)/1000.0f;
+
+  if(llc.shareloop.loop_out > llc.shareloop.out_max)
+    {
+      llc.shareloop.loop_out = llc.shareloop.out_max;
+    }
+  else if(llc.shareloop.loop_out < llc.shareloop.out_min)
+    {
+      llc.shareloop.loop_out = llc.shareloop.out_min;
+    }
+  llc.delta_voltage = llc.shareloop.loop_out ;
+//	llc.delta_voltage = 0;//llc.shareloop.loop_out ;
+
+
+
+}
+
+RAMCODE
+void llc_loop_para_init(void)
+{
+//	llc.vloop.kp = 1000 ;
+//  llc.vloop.ki = 20 ;
+  llc.vloop.data_move = 12;
+  llc.vloop.integral_max	= (int32_t)1 << 25;
+  llc.vloop.integral_min	= (int32_t) - (1 << 25);
+
+  llc.vloop.integral 			= 0 ;
+  llc.vloop.data_error 		= 0 ;
+  llc.vloop.loop_out 			= 0 ;
+  llc.vloop.out_max 			= VOLT_LOOP_MIN;
+  llc.vloop.out_min 			= VOLT_LOOP_MIN;
+
+
+//  llc.iloop.kp = 800 ;
+//  llc.iloop.ki = 10;
+  llc.iloop.data_move = 12;
+  llc.iloop.integral_max	= (int32_t)1 << 25;
+  llc.iloop.integral_min	= (int32_t) - (1 << 25);
+
+  llc.iloop.integral 			= 0 ;
+  llc.iloop.data_error 		= 0 ;
+  llc.iloop.loop_out 			= 0 ;
+  llc.iloop.out_max 			= CURR_LOOP_MIN;
+  llc.iloop.out_min 			= CURR_LOOP_MIN;
+
+
+
+
+}

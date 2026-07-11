@@ -6,6 +6,7 @@
     <Nullable>enable</Nullable>
     <UseWindowsForms>true</UseWindowsForms>
     <ImplicitUsings>enable</ImplicitUsings>
+    <CodePage>936</CodePage>
     <RootNamespace>IapUpgradeTool</RootNamespace>
     <AssemblyName>iap_tools</AssemblyName>
   </PropertyGroup>

@@ -1047,12 +1047,13 @@ namespace IapUpgradeTool
         {
             if (_isUpgrading)
             {
-                LogMessage(LogLevel.Info, "用户请求停止升级...");
+                LogMessage(LogLevel.Info, "用户请求停止升级，正在等待后台任务退出...");
+                _stopButton.Enabled = false;
+                _upgradeButton.Enabled = false;
+                _upgradeSimpleButton.Enabled = false;
+                _statusLabel.Text = "正在停止升级...";
+                _statusLabel.ForeColor = Color.Orange;
                 _iapMaster.StopUpgrade();
-
-                ResetUpgradeState();
-                _statusLabel.Text = "升级已停止";
-                _statusLabel.ForeColor = Color.Red;
             }
         }
 

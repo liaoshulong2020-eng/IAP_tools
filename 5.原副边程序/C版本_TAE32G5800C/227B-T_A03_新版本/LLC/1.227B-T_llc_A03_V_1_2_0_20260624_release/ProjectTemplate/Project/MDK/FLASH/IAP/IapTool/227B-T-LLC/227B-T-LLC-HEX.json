@@ -1,0 +1,11 @@
+{
+  "baudrate": 115200,
+  "modbusAddr": 2,
+  "appFile": "227B-T-LLC/227B-T_LLC_A03_V1_2_0_20260624_iap_release.hex",
+  "flashBaseAddr": 134217728,
+  "flashMaxSize": 262144,
+  "appBaseAddr": 134250496,
+  "appMaxSize": 229376,
+  "argBaseAddr": 134246400,
+  "readWriteSize": 128
+}

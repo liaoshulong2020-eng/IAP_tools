@@ -56,8 +56,10 @@ namespace IapUpgradeTool
         public void StopUpgrade()
         {
             _stopRequested = true;
+            _ackEvent.Set();
             _modbusMaster?.StopReceiving();
-            SendMessage(true, "正在停止升级任务...");
+            CleanupSerialPort();
+            SendMessage(true, "正在停止升级任务，已关闭串口并等待后台退出...");
         }
 
         public bool LoadConfig(IapConfig config, string configPath = null)
@@ -232,41 +234,9 @@ namespace IapUpgradeTool
         {
             try
             {
-                // 检查串口状态
-                bool needReconnect = false;
-
-                if (_serialPort == null)
-                {
-                    needReconnect = true;
-                    SendMessage(true, "串口对象为空，需要重新创建");
-                }
-                else
-                {
-                    try
-                    {
-                        // 测试串口是否有效
-                        var _ = _serialPort.IsOpen;
-                        var __ = _serialPort.PortName;
-
-                        if (!_serialPort.IsOpen)
-                        {
-                            needReconnect = true;
-                            SendMessage(true, "串口未打开，需要重新创建");
-                        }
-                    }
-                    catch
-                    {
-                        needReconnect = true;
-                        SendMessage(true, "串口对象失效，需要重新创建");
-                    }
-                }
-
-                if (needReconnect)
-                {
-                    return await RecreateSerialPortAsync();
-                }
-
-                return true;
+                // 每次升级尝试前都重新打开串口，避免转发板/目标在上次掉电或停止后停在半连接状态。
+                SendMessage(true, "升级尝试前重新打开串口，清理上次通信状态");
+                return await RecreateSerialPortAsync();
             }
             catch (Exception ex)
             {
@@ -309,9 +279,14 @@ namespace IapUpgradeTool
                         _serialPort.Open();
                         await Task.Delay(1000);
 
-                        // 配置串口参数
+                        // 配置串口参数，并用 DTR/RTS 脉冲尝试复位转发板状态。
+                        SendMessage(true, "正在切换DTR/RTS，尝试复位串口转发板状态...");
+                        _serialPort.DtrEnable = false;
+                        _serialPort.RtsEnable = false;
+                        await Task.Delay(300);
                         _serialPort.DtrEnable = true;
                         _serialPort.RtsEnable = true;
+                        await Task.Delay(1500);
                         _serialPort.DiscardInBuffer();
                         _serialPort.DiscardOutBuffer();
 

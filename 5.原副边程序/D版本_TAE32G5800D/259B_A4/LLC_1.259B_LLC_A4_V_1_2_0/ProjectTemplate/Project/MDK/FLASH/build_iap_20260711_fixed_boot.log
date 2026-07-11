@@ -1,0 +1,124 @@
+*** Using Compiler 'V6.14.1', folder: 'C:\Keil_v5\ARM\ARMCLANG\Bin'
+Build target 'FLASH'
+After Build - User command #1: .\FLASH\AfterBuildHandler.bat C:\Keil_v5\ARM\ARMCLANG\include D:\work\lsl\9.upper\1.code\30.CAN_IAP_tools-main\IAP_tools-main\5.原副边程序\D版本_TAE32G5800D\259B_A4\LLC_1.259B_LLC_A4_V_1_2_0\ProjectTemplate\Project\MDK\FLASH\Objects\259B_LLC_V_1_2_0_20260711_iap_release.axf
+Debug: Parameters received:
+  tool_chain_inc=C:\Keil_v5\ARM\ARMCLANG\include
+  axf_full_path=D:\work\lsl\9.upper\1.code\30.CAN_IAP_tools-main\IAP_tools-main\5.原副边程序\D版本_TAE32G5800D\259B_A4\LLC_1.259B_LLC_A4_V_1_2_0\ProjectTemplate\Project\MDK\FLASH\Objects\259B_LLC_V_1_2_0_20260711_iap_release.axf
+  axf_name=259B_LLC_V_1_2_0_20260711_iap_release
+  project_name=259B-LLC
+Step 1: Generating bin file...
+Step 2: Copying files...
+已复制         1 个文件。
+已复制         1 个文件。
+已复制         1 个文件。
+Step 3: Patching files...
+Hex file detected!BaseAddress=0x8008000
+
+
+Operation successed!
+
+Step 3.5: Ensuring BootLoader files exist...
+BootLoader files are ready
+Step 4: Copying to IAP directories...
+Debug: copyToIapDirectories called with target_name=259B_LLC_V_1_2_0_20260711_iap_release
+Copying .\Execute\259B_LLC_V_1_2_0_20260711_iap_release.bin and .\Execute\259B_LLC_V_1_2_0_20260711_iap_release.hex to .\IAP\IapFileCreator\259B-LLC
+已复制         1 个文件。
+已复制         1 个文件。
+Updating JSON configuration: .\IAP\IapFileCreator\259B-LLC\259B-LLC-BIN.json
+  appFile: 259B-LLC/259B_LLC_V_1_2_0_20260711_iap_release.bin
+  outFile: 259B-LLC/259B_LLC_V_1_2_0_20260711_jlink_release.bin
+移动了         1 个文件。
+JSON configuration updated successfully.
+Updating HEX JSON configuration: .\IAP\IapFileCreator\259B-LLC\259B-LLC-HEX.json
+  appFile: 259B-LLC/259B_LLC_V_1_2_0_20260711_iap_release.hex
+  outFile: 259B-LLC/259B_LLC_V_1_2_0_20260711_jlink_release.hex
+移动了         1 个文件。
+HEX JSON configuration updated successfully.
+Copying .\Execute\259B_LLC_V_1_2_0_20260711_iap_release.bin and .\Execute\259B_LLC_V_1_2_0_20260711_iap_release.hex to .\IAP\IapTool\259B-LLC
+已复制         1 个文件。
+已复制         1 个文件。
+Updating IapTool JSON configuration: .\IAP\IapTool\259B-LLC\259B-LLC-BIN.json
+  appFile: 259B-LLC/259B_LLC_V_1_2_0_20260711_iap_release.bin
+移动了         1 个文件。
+IapTool JSON configuration updated successfully.
+Updating IapTool HEX JSON configuration: .\IAP\IapTool\259B-LLC\259B-LLC-HEX.json
+  appFile: 259B-LLC/259B_LLC_V_1_2_0_20260711_iap_release.hex
+移动了         1 个文件。
+IapTool HEX JSON configuration updated successfully.
+Successfully copied bin and hex files to IAP directories.
+Step 5: Merging files...
+Debug: mergeIapFiles called with app_name=259B_LLC_V_1_2_0_20260711_iap_release
+Merging bootloader, app, and hex files...
+  bootloader_bin_file=.\IAP\IapFileCreator\259B-LLC\BootLoader-5800.bin
+  bootloader_hex_file=.\IAP\IapFileCreator\259B-LLC\BootLoader-5800.hex
+  app_bin_file=.\IAP\IapFileCreator\259B-LLC\259B_LLC_V_1_2_0_20260711_iap_release.bin
+  app_hex_file=.\IAP\IapFileCreator\259B-LLC\259B_LLC_V_1_2_0_20260711_iap_release.hex
+  json_bin_file=.\IAP\IapFileCreator\259B-LLC\259B-LLC-BIN.json
+  json_hex_file=.\IAP\IapFileCreator\259B-LLC\259B-LLC-HEX.json
+
+========== Processing BIN files ==========
+Calling PowerShell script to merge BIN files...
+Starting IAP file merge process...
+Configuration loaded:
+  bootMaxSize: 32768
+  argBaseAddr: 28672
+  appBaseAddr: 32768
+  outputFile: .\IAP\IapFileCreator\259B-LLC\259B_LLC_V_1_2_0_20260711_jlink_release.bin
+  mode: BIN
+Processing BIN files...
+Reading bootloader file...
+Bootloader size: 22848 bytes
+Reading app file...
+App size: 33988 bytes
+Calculating CRC32 using C# compatible algorithm...
+App CRC32: 0xE87893C8
+Creating merged file...
+Successfully created merged file: .\IAP\IapFileCreator\259B-LLC\259B_LLC_V_1_2_0_20260711_jlink_release.bin
+Final file size: 66756 bytes
+Boot size: 22848 bytes
+App size: 33988 bytes
+App CRC32: 0xE87893C8
+Successfully merged BIN files.
+
+========== Processing HEX files ==========
+Calling PowerShell script to merge HEX files...
+Starting IAP file merge process...
+Configuration loaded:
+  bootMaxSize: 32768
+  argBaseAddr: 28672
+  appBaseAddr: 32768
+  outputFile: .\IAP\IapFileCreator\259B-LLC\259B_LLC_V_1_2_0_20260711_jlink_release.hex
+  mode: HEX
+  flashBaseAddr: 0x08000000
+Processing HEX files...
+Reading bootloader hex file...
+Bootloader size: 22848 bytes (padded to 32768 bytes)
+Reading app hex file...
+App address range: 0x08008000 - 0x080104C3
+App size: 33988 bytes
+Calculating CRC32 using C# compatible algorithm...
+App CRC32: 0xE87893C8
+Creating merged file...
+Successfully created merged file: .\IAP\IapFileCreator\259B-LLC\259B_LLC_V_1_2_0_20260711_jlink_release.hex
+Final file size: 66756 bytes
+Boot size: 22848 bytes
+App size: 33988 bytes
+App CRC32: 0xE87893C8
+Successfully merged HEX files.
+
+========== Merge operations completed ==========
+Successfully processed both BIN and HEX files (where available).
+Step 6: Copying jlink files back to Execute...
+Debug: copyJlinkFilesToExecute called with app_name=259B_LLC_V_1_2_0_20260711_iap_release
+Copying generated jlink files to Execute directory...
+  jlink_name=259B_LLC_V_1_2_0_20260711_jlink_release
+  Source directory: .\IAP\IapFileCreator\259B-LLC
+  Destination directory: .\Execute
+已复制         1 个文件。
+Successfully copied jlink BIN file.
+已复制         1 个文件。
+Successfully copied jlink HEX file.
+Successfully copied available jlink files back to Execute directory.
+All steps completed successfully!
+".\FLASH\Objects\259B_LLC_V_1_2_0_20260711_iap_release.axf" - 0 Error(s), 0 Warning(s).
+Build Time Elapsed:  00:00:10

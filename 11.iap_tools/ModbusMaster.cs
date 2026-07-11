@@ -52,6 +52,7 @@ namespace IapUpgradeTool
         private void ReceiveData(CancellationToken cancellationToken)
         {
             var rxBuffer = new List<byte>();
+            int transientIoErrors = 0;
 
             while (_isReceiving && !cancellationToken.IsCancellationRequested)
             {
@@ -68,6 +69,7 @@ namespace IapUpgradeTool
                     {
                         var buffer = new byte[_serialPort.BytesToRead];
                         var bytesRead = _serialPort.Read(buffer, 0, buffer.Length);
+                        transientIoErrors = 0;
 
                         for (int i = 0; i < bytesRead; i++)
                         {
@@ -112,8 +114,13 @@ namespace IapUpgradeTool
                 }
                 catch (System.IO.IOException ex)
                 {
-                    ErrorOccurred?.Invoke($"´®¿ÚIO´íÎó: {ex.Message}");
-                    break;
+                    transientIoErrors++;
+                    if (transientIoErrors >= 3)
+                    {
+                        ErrorOccurred?.Invoke($"´®¿ÚIO´íÎó: {ex.Message}");
+                        break;
+                    }
+                    Thread.Sleep(200);
                 }
                 catch (Exception ex)
                 {

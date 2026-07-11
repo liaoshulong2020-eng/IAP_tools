@@ -8,13 +8,14 @@ internal sealed class CanIapUpgradeSession
     private const uint AppBaseAddr = 0x08008000;
     private const uint ArgBaseAddr = 0x08007000;
     private const int AppMaxSize = 224 * 1024;
-    private const int WriteSize = 96;
+    private const int FlashSectorSize = 4 * 1024;
+    private const int WriteSize = 128;
     private const int MaxMainRetries = 3;
     private const int MainRetryDelayMs = 5000;
     private const int WriteRetryDelayMs = 300;
-    private const int EnterProbeCount = 18;
+    private const int EnterProbeCount = 30;
     private const int EnterProbeDelayMs = 120;
-    private const int EnterProbeAckTimeoutMs = 260;
+    private const int EnterProbeAckTimeoutMs = 1000;
 
     private readonly Func<byte[], CancellationToken, Task> _sendPacketAsync;
     private readonly Func<CancellationToken, Task>? _recoverTransportAsync;
@@ -239,7 +240,7 @@ internal sealed class CanIapUpgradeSession
             uint resumeAddr = AppBaseAddr + (uint)index;
             int resumePercent = Math.Min(99, index * 100 / app.Length);
             _progress(resumePercent);
-            _log($"从断点续传: {resumePercent}%, 地址 0x{resumeAddr:X8}");
+            _log($"从可靠断点续传: {resumePercent}%, 地址 0x{resumeAddr:X8}");
         }
 
         while (index < app.Length)
@@ -266,9 +267,13 @@ internal sealed class CanIapUpgradeSession
 
             if (!ok)
             {
-                _resumeState.LastWrittenIndex = index;
+                _resumeState.LastWrittenIndex = GetReliableResumeIndex(index);
                 SaveResumeState();
                 _log($"写 Flash 失败: 0x{addr:X8}");
+                if (_resumeState.LastWrittenIndex != index)
+                {
+                    _log($"断点已回退到扇区起点: 0x{AppBaseAddr + (uint)_resumeState.LastWrittenIndex:X8}");
+                }
                 return false;
             }
 
@@ -337,7 +342,14 @@ internal sealed class CanIapUpgradeSession
     private int GetResumeIndex(int appLength)
     {
         int index = Math.Max(0, Math.Min(_resumeState.LastWrittenIndex, appLength));
-        return index / WriteSize * WriteSize;
+        return GetReliableResumeIndex(index);
+    }
+
+    private static int GetReliableResumeIndex(int index)
+    {
+        if (index <= 0) return 0;
+        int sectorAligned = index / FlashSectorSize * FlashSectorSize;
+        return sectorAligned / WriteSize * WriteSize;
     }
 
     private string ResumeStatePath
@@ -380,7 +392,17 @@ internal sealed class CanIapUpgradeSession
             }
 
             _resumeState = saved;
-            _log($"发现断点续传状态: {Math.Min(99, saved.LastWrittenIndex * 100 / appLength)}%, 地址 0x{AppBaseAddr + (uint)saved.LastWrittenIndex:X8}");
+            int reliableIndex = GetResumeIndex(appLength);
+            if (reliableIndex != saved.LastWrittenIndex)
+            {
+                _resumeState.LastWrittenIndex = reliableIndex;
+                SaveResumeState();
+                _log($"发现断点续传状态，已回退到可靠扇区起点: {Math.Min(99, reliableIndex * 100 / appLength)}%, 地址 0x{AppBaseAddr + (uint)reliableIndex:X8}");
+            }
+            else
+            {
+                _log($"发现断点续传状态: {Math.Min(99, saved.LastWrittenIndex * 100 / appLength)}%, 地址 0x{AppBaseAddr + (uint)saved.LastWrittenIndex:X8}");
+            }
         }
         catch (Exception ex)
         {
