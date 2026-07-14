@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Data;
@@ -52,6 +52,7 @@ namespace CAN_TOOLS
         private const byte CMD_KI = 0x29;                  // 41 - KI参数（32位，带CRC）  
         private const byte CMD_TEST = 0x42;                // 测试参数（32位，不带CRC）
         private const byte CMD_TEST2 = 0x43;               // 测试参数2（32位，带CRC）
+        private const byte CMD_UART_MODE = 0x45;           // LLC UART模式切换：0=VOFA调试，1=原副边通讯
         private const byte CMD_LLC_VOLTAGE_PROTECT = 0x3F; // 查询LLC电压保护点
         private const byte CMD_LLC_OCP_PROTECT = 0x40; // 查询LLC过流保护点
         private const byte CMD_LLC_OSP_PROTECT = 0x41; // 查询LLC短路保护点
@@ -196,6 +197,8 @@ namespace CAN_TOOLS
         private Label? _iapStatusLabel;
         private Label? _iapProgressValueLabel;
         private RichTextBox? _iapLogTextBox;
+        private ComboBox? _uartModeComboBox;
+        private Label? _uartModeStatusLabel;
 
         // 每通道发送计数（TX）
         private readonly Dictionary<uint, uint> _txCountPerChannel = new Dictionary<uint, uint>();
@@ -229,6 +232,7 @@ namespace CAN_TOOLS
             // 在代码中创建电源开关指示灯（避免修改庞大的 Designer.cs）
             CreatePowerLedLabels();
             CreateFirmwareUpgradeTab();
+            CreateUartModeControls();
         }
 
         private void NormalizeMainLayout()
@@ -247,6 +251,69 @@ namespace CAN_TOOLS
 
             groupRecv.Resize += (_, _) => LayoutGlobalLogPanel();
             LayoutGlobalLogPanel();
+        }
+
+        private void CreateUartModeControls()
+        {
+            var group = new GroupBox
+            {
+                Text = "LLC UART模式",
+                Location = new Point(430, 90),
+                Size = new Size(430, 182),
+                Anchor = AnchorStyles.Top | AnchorStyles.Left
+            };
+
+            var modeLabel = new Label
+            {
+                Text = "模式",
+                Location = new Point(18, 34),
+                Size = new Size(48, 24),
+                TextAlign = ContentAlignment.MiddleLeft
+            };
+
+            _uartModeComboBox = new ComboBox
+            {
+                DropDownStyle = ComboBoxStyle.DropDownList,
+                Location = new Point(70, 32),
+                Size = new Size(200, 25)
+            };
+            _uartModeComboBox.Items.AddRange(new object[]
+            {
+                "调试模式（VOFA）",
+                "原副边通讯模式"
+            });
+            _uartModeComboBox.SelectedIndex = 1;
+
+            var applyButton = new Button
+            {
+                Text = "应用模式",
+                Location = new Point(286, 30),
+                Size = new Size(112, 30)
+            };
+            applyButton.Click += UartModeApplyButton_Click;
+
+            _uartModeStatusLabel = new Label
+            {
+                Text = "默认原副边通讯；升级或读取PFC数据时使用此模式。",
+                Location = new Point(18, 72),
+                Size = new Size(392, 44),
+                ForeColor = Color.DimGray
+            };
+
+            var hintLabel = new Label
+            {
+                Text = "VOFA与PFC通讯共用LLC的PA9/PA10，同一时间只能选择一种。",
+                Location = new Point(18, 122),
+                Size = new Size(392, 42),
+                ForeColor = Color.DarkSlateGray
+            };
+
+            group.Controls.Add(modeLabel);
+            group.Controls.Add(_uartModeComboBox);
+            group.Controls.Add(applyButton);
+            group.Controls.Add(_uartModeStatusLabel);
+            group.Controls.Add(hintLabel);
+            tabSettings.Controls.Add(group);
         }
 
         private void LayoutGlobalLogPanel()
@@ -1162,6 +1229,33 @@ namespace CAN_TOOLS
         }
 
         // 继续添加其他必要的方法...
+        private void UartModeApplyButton_Click(object? sender, EventArgs e)
+        {
+            if (_iapUpgradeInProgress)
+            {
+                MessageBox.Show("升级中不能切换UART模式。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            if (!m_bStart)
+            {
+                MessageBox.Show("请先启动CAN。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            byte mode = (byte)(_uartModeComboBox?.SelectedIndex == 0 ? 0x00 : 0x01);
+            byte[] dataBytes = new byte[8] { 0x00, CMD_UART_MODE, mode, 0xA5, 0x5A, 0x00, 0x00, 0x00 };
+            SendCANFrame(dataBytes, 5, overrideId1: 0x20, overrideId2: 0x20);
+
+            string modeText = mode == 0 ? "调试模式（VOFA）" : "原副边通讯模式";
+            if (_uartModeStatusLabel != null)
+            {
+                _uartModeStatusLabel.Text = $"已发送切换命令：{modeText}";
+                _uartModeStatusLabel.ForeColor = mode == 0 ? Color.DarkOrange : Color.DarkGreen;
+            }
+            AppendRecvLog($"已发送LLC UART模式切换：{modeText}");
+        }
+
         private void SendSimpleCommand(byte command, uint? overrideMasterId = null)
         {
             if (_iapUpgradeInProgress)
@@ -2084,6 +2178,9 @@ namespace CAN_TOOLS
                     case 0xBE:  // 温度保护点
                         ParseTempProtectData(id, frameData);
                         break;
+                    case CMD_UART_MODE:
+                        ParseUartModeAck(frameData);
+                        break;
 
                     // ── PFC (原边) 保护/数据帧 ──
                     case 0x87:  // RETURN_BIT_PFC_INPUT_OVP
@@ -2112,6 +2209,31 @@ namespace CAN_TOOLS
                         break;
                 }
             }
+        }
+
+        private void ParseUartModeAck(byte[] frameData)
+        {
+            if (frameData.Length < 3) return;
+
+            byte mode = frameData[2];
+            string modeText = mode == 0 ? "调试模式（VOFA）" :
+                              mode == 1 ? "原副边通讯模式" :
+                              mode == 2 ? "IAP预留模式" :
+                              $"未知模式 0x{mode:X2}";
+
+            BeginInvoke(new Action(() =>
+            {
+                if (_uartModeComboBox != null && mode <= 1)
+                    _uartModeComboBox.SelectedIndex = mode;
+
+                if (_uartModeStatusLabel != null)
+                {
+                    _uartModeStatusLabel.Text = $"LLC已确认：{modeText}";
+                    _uartModeStatusLabel.ForeColor = mode == 0 ? Color.DarkOrange : Color.DarkGreen;
+                }
+            }));
+
+            AppendRecvLog($"LLC UART模式确认：{modeText}");
         }
 
         private void Command_Read_Data(uint id, byte[] frameData, uint ch, bool updateRealtimeModel = true)

@@ -1,10 +1,8 @@
 /*
  * iap.c - PFC Bootloader IAP核心逻辑
  *
- * PFC bootloader被动接收LLC转发的IAP命令，不主动发送任何请求
- *
- *  Created on: 2024年3月26日
- *      Author: Liang Jinfeng
+ * PFC bootloader被动接收LLC转发的IAP命令，不主动发送任何请�? *
+ *  Created on: 2024�?�?6�? *      Author: Liang Jinfeng
  *  Modified: 2025 - 适配PFC bootloader，移除主动请求逻辑
  */
 
@@ -17,10 +15,11 @@
 #define RAM_END_ADDR       0x20020000UL
 #define APP_END_ADDR       (FLASH_BASE_ADDR+FLASH_MAX_SIZE)
 #define APP_INFO_SIZE      8UL
+#define PFC_IAP_BOOT_MAGIC_ADDR     0x2001FFF0UL
+#define PFC_IAP_BOOT_MAGIC_VALUE    0x50464349UL
 
 /*******************************************************************************
- * 静态变量
- ******************************************************************************/
+ * 静态变�? ******************************************************************************/
 
 //是否进入IAP模式
 static bool iap_flag;
@@ -31,8 +30,7 @@ static ulong time_cnt;
 static bool jump_flag;
 
 /*******************************************************************************
- * 静态函数
- ******************************************************************************/
+ * 静态函�? ******************************************************************************/
 
 //定义函数指针
 typedef void (*app_main_t)(void);
@@ -72,6 +70,14 @@ static bool app_vector_is_valid()
 	if((sp&0x03UL)!=0)return false;
 	if((reset&0x01UL)==0)return false;
 	if(reset_addr<APP_BASE_ADDR || reset_addr>=APP_END_ADDR)return false;
+	return true;
+}
+
+static bool iap_boot_magic_is_set()
+{
+	ulong magic=*((volatile ulong*)PFC_IAP_BOOT_MAGIC_ADDR);
+	if(magic!=PFC_IAP_BOOT_MAGIC_VALUE)return false;
+	*((volatile ulong*)PFC_IAP_BOOT_MAGIC_ADDR)=0;
 	return true;
 }
 
@@ -116,8 +122,7 @@ static bool flash_program(ulong addr,const void *buff,ulong size)
 	//计算扇区索引
 	sector_index=offset/sector_size;
 	remainder=offset%sector_size;
-	//如果刚好为扇区起始地址，则先擦除扇区
-	if(remainder==0)
+	//如果刚好为扇区起始地址，则先擦除扇�?	if(remainder==0)
 	{
 		if(LL_EFLASH_EraseSector(EFLASH,sector_index)!=LL_OK)return false;
 	}
@@ -193,8 +198,7 @@ static void cmd_write_flash(iap_pkt_t *pkt)
 }
 
 /*
- * cmd=4：写校验码
- */
+ * cmd=4：写校验�? */
 static void cmd_write_checksum(iap_pkt_t *pkt)
 {
 	ulong appsize;
@@ -221,8 +225,7 @@ static void cmd_write_checksum(iap_pkt_t *pkt)
  ******************************************************************************/
 
 /*
- * 初始化
- */
+ * 初始�? */
 void iap_init()
 {
 	iap_flag=false;
@@ -249,8 +252,7 @@ bool iap_flash_verify()
 }
 
 /*
- * IAP数据包解码
- */
+ * IAP数据包解�? */
 void iap_pkt_decode(iap_pkt_t *pkt)
 {
 	if(pkt==0)return;
@@ -270,12 +272,10 @@ void iap_pkt_decode(iap_pkt_t *pkt)
 
 /*
  * IAP任务
- * PFC bootloader被动等待LLC发来的命令，不主动请求
- */
+ * PFC bootloader被动等待LLC发来的命令，不主动请�? */
 void iap_task()
 {
-	//如果已经进入IAP模式，则退出（等待IAP命令处理）
-	if(iap_flag)return;
+	//如果已经进入IAP模式，则退出（等待IAP命令处理�?	if(iap_flag)return;
 
 	//超时后尝试跳转APP
 	time_cnt++;

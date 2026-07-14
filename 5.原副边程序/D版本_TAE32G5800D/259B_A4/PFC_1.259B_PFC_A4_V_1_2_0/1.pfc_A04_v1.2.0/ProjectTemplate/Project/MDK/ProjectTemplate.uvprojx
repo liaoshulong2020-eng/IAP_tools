@@ -49,7 +49,7 @@
             <InvalidFlash>1</InvalidFlash>
           </TargetStatus>
           <OutputDirectory>.\FLASH\Objects\</OutputDirectory>
-          <OutputName>259B_pfc_A04_v1_2_0_20260625_release</OutputName>
+          <OutputName>259B_PFC_A04_V_1_2_0_20260711_iap_release</OutputName>
           <CreateExecutable>1</CreateExecutable>
           <CreateLib>0</CreateLib>
           <CreateHexFile>1</CreateHexFile>

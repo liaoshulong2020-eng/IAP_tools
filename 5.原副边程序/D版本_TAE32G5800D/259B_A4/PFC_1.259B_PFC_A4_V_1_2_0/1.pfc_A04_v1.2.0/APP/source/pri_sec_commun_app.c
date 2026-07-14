@@ -14,6 +14,17 @@ volatile PFC_REPORT_DATA_TypeDef pfc_report_data;
 volatile float llc_send_vbus_target = 0.0f;
 static uint8_t uart_rx_buf[LLC_FRAME_LENGTH];
 
+#define PFC_IAP_BOOT_MAGIC_ADDR     (0x2001FFF0UL)
+#define PFC_IAP_BOOT_MAGIC_VALUE    (0x50464349UL)
+
+RAMCODE
+static void pfc_request_iap_boot(void)
+{
+    *(volatile uint32_t *)PFC_IAP_BOOT_MAGIC_ADDR = PFC_IAP_BOOT_MAGIC_VALUE;
+    __DSB();
+    NVIC_SystemReset();
+}
+
 
 void user_uart_init()
 {
@@ -199,7 +210,7 @@ static void parse_llc_frame(const uint8_t *frame)
     uint8_t cmd = frame[1];
     
     if (cmd == CMD_LLC_ENTER_IAP) {
-        NVIC_SystemReset();
+        pfc_request_iap_boot();
     } else if (cmd == CMD_LLC_VBUS_TARGET) {
         float_union_t converter;
         converter.b[0] = frame[2];

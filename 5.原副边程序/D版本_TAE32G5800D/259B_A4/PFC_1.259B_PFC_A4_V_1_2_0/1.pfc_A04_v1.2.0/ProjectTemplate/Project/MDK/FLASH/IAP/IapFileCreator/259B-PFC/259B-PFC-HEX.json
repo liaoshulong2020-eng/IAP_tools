@@ -1,0 +1,10 @@
+{
+  "bootFile": "259B-PFC/BootLoader-259B-PFC-D.hex",
+  "appFile": "259B-PFC/259B_PFC_A04_V_1_2_0_20260711_iap_release.hex",
+  "outFile": "259B-PFC/259B_PFC_A04_V_1_2_0_20260711_jlink_release.hex",
+  "bootMaxSize": 32768,
+  "argBaseAddr": 28672,
+  "appBaseAddr": 32768,
+  "appMaxSize": 229376,
+  "flashBaseAddr": 134217728
+}

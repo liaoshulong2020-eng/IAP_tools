@@ -5,6 +5,7 @@ LLC_HRPWM_TypeDef mpwm, pwm0, pwm1,  pwm2, pwm3, pwm4, pwm5;
 llcTypeDef llc;
 can_data_TypeDef can_data,hld_can_data;
 can_share_power_TypeDef can_share_power;
+volatile uint8_t llc_uart_work_mode = LLC_UART_DEFAULT_MODE;
 int16_t temp_samp				[BUF_LEN]	__attribute__((aligned(8), section("SECTION_RAMB")));
 int16_t s_trim_samp			[BUF_LEN]	__attribute__((aligned(8), section("SECTION_RAMB")));
 int16_t vout_samp				[BUF_LEN]	__attribute__((aligned(8), section("SECTION_RAMB")));

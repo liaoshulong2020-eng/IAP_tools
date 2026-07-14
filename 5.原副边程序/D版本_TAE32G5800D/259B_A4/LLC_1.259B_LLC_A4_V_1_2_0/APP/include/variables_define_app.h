@@ -95,12 +95,12 @@ typedef struct
 #define BUF_LEN 1
 /*============================ ADC0 ============================*/
 
-#define IOUT_SAMPLE_CH1           ADC_CH_1   	  		//����������� 							PA0 ADC0_IN1 CMP2_INP0
+#define IOUT_SAMPLE_CH1           ADC_CH_1   	  		//�����������?							PA0 ADC0_IN1 CMP2_INP0
 
-#define VOUT_SAMP_CH4							ADC_CH_4					//�����ѹ����							PA3 ADC0_IN4,CMP1_INP1
+#define VOUT_SAMP_CH4							ADC_CH_4					//�����ѹ����?						PA3 ADC0_IN4,CMP1_INP1
 
 /*============================ ADC1 ============================*/
-#define S_TRIM_SAMPLE_CH2         ADC_CH_2      		//LLC�����ѹԶ�˲����ź� 	PA1 ADC1_IN2
+#define S_TRIM_SAMPLE_CH2         ADC_CH_2      		//LLC�����ѹԶ�˲����ź�?	PA1 ADC1_IN2
 #define LOADSHARE_SAMPLE_CH12      ADC_CH_12     	  	//ϵͳ�������ߵ�ѹ����		PB2 ADC1_IN12
 
 /*============================ ADC2 ============================*/
@@ -133,13 +133,13 @@ extern  uint16_t loadshare_filter;
 #define	SAMP_RATIO												(float)(2.9/8192)		//��������
 
 
-//���Ŀ��
+//���Ŀ��?
 #define VOUT_VOLTAGE					(float)48.0//47.6//48.1
 	
-// ���Ƿѹ(��������)
+// ���Ƿ�?��������)
 #define VOUT_UNDER_VOLTAGE			43.0//10
 
-//�����ѹ(��������)
+//������?��������)
 #define VOUT_OVER_VOLTAGE				57.6
 
 #define VOUT_GAIN								((float)0.0480769)//0.0905
@@ -234,11 +234,11 @@ extern  uint16_t loadshare_filter;
 
 
 /*================================================ DAC ================================================*/
-// �����ѹ(Ӳ������)
+// ������?Ӳ������)
 #define VOUT_OVER_VOLTAGE_DAC			53.0
 #define VOUT_OVER_VOLTAGE_DAC_VALUE				(VOUT_OVER_VOLTAGE_DAC*VOUT_GAIN*4096.0f/2.9f)
 
-// �������(Ӳ������)
+// �������?Ӳ������)
 #define IOUT_OCP_CURRENT_DAC									(23.0)
 #define IOUT_OCP_CURRENT_DAC_DAC_VALUE				((IOUT_OCP_CURRENT_DAC*IOUT_GAIN_VAL+IOUT_OFFSET_VAL)*4096/2.9)
 
@@ -286,6 +286,7 @@ typedef enum
     
     CMD_TEST = 0x42,            // ��������
     CMD_TEST2 = 0x43,           // ��������2
+    CMD_UART_MODE = 0x45,       // UART mode select: 0=VOFA, 1=PFC communication
 
     CMD_IAP = 0x50,             // IAP����
 } CommandType;
@@ -306,7 +307,7 @@ typedef enum
 //�汾��ѯ������
 #define 	VERSION_CMD						0x82	//byte1
 
-//�������
+//�������?
 #define 	COMPNET_TYPE					0x10	//byte2
 
 //���ڶ��� 20240220
@@ -392,7 +393,7 @@ typedef struct {
 typedef struct {
     uint8_t frame_count; 			// ֡����
     uint8_t version_cmd; 			// �汾��ѯ������
-    uint8_t compnet_type; 		// �������
+    uint8_t compnet_type; 		// �������?
     uint8_t year; 						// ��
     uint8_t month; 						// ��
     uint8_t day; 							// ��
@@ -467,7 +468,7 @@ typedef union {
         uint8_t can3_level : 1;  // ��ʾ��������ƽ�ĸߵ�
         uint8_t reserved : 5; // ����λ��ȷ���ܹ�ռ�� 8 λ
     };
-    uint8_t can_addr_level_bits;  // ʹ��һ���ֽ����洢���е�ƽ�����
+    uint8_t can_addr_level_bits;  // ʹ��һ���ֽ����洢���е�ƽ�����?
 } Can_LevelUnion;
  struct	send_state_TypeDef
 {
@@ -675,7 +676,7 @@ bool temp_recover_mode;
 struct	send_massage_TypeDef	send_massage;
 uint32_t state_on_cnt;
 uint32_t state_fault_cnt;		//����״̬�ָ�����
-uint32_t fault_under_cnt;		//����ʱ�����
+uint32_t fault_under_cnt;		//����ʱ�����?
 
 //pid_para
 LLC_PID_TypeDef vloop;
@@ -719,11 +720,11 @@ bool on_off_ctrl_fault;
 bool 				start_contr;
 
 uint32_t		idel_delay_cnt;		//idle״̬���ӳټ���
-bool				idel_delay_ok;		//idle״̬�ӳ����
+bool				idel_delay_ok;		//idle״̬�ӳ����?
 uint32_t 		ramup_delay_cnt;
 
 uint32_t		softstart_delay_cnt;		//idle״̬���ӳټ���
-bool				softstart_delay_ok;		//idle״̬�ӳ����
+bool				softstart_delay_ok;		//idle״̬�ӳ����?
 
 //pfc_is_ok_cnt
 uint32_t 		pfc_is_ok_cnt;		//pfc�����ź�
@@ -792,6 +793,13 @@ extern can_share_power_TypeDef can_share_power;
 
 
 
+
+#define LLC_UART_MODE_VOFA      0u  /* PA9/PA10 used by VOFA waveform output */
+#define LLC_UART_MODE_PFC_COMM  1u  /* PA9/PA10 used by LLC<->PFC communication */
+#define LLC_UART_MODE_IAP       2u  /* PA9/PA10 reserved for PFC IAP forwarding */
+#define LLC_UART_DEFAULT_MODE   LLC_UART_MODE_PFC_COMM
+
+extern volatile uint8_t llc_uart_work_mode;
 
 #define UART_FUNC 1
 
