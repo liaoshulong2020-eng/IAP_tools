@@ -1,10 +1,8 @@
-// ï¿½Ï²ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ß¼ï¿½ï¿½ï¿½CANï¿½ï¿½ï¿½Õ´ï¿½ï¿½ï¿½
+// ºÏ²¢´¦ÀíÂß¼­µÄCAN½ÓÊÕ´úÂë
 
 #include "main.h"
 #include "can_app.h"
 #include "variables_define_app.h"
-#include "vofa_app.h"
-#include "pri_sec_commun_app.h"
 
 #define KP_KI_SCALE_FACTOR 100
 
@@ -14,38 +12,6 @@ int deviceCount = 0;
 uint8_t dev_index ;
 
 void User_CAN_RxCpltCallback(void);
-void can_send_16bit_simple(uint8_t cmd, uint16_t value);
-RAMCODE
-static void llc_uart_apply_mode(uint8_t mode)
-{
-  if(mode > LLC_UART_MODE_IAP)
-    {
-      return;
-    }
-
-  if(mode == LLC_UART_MODE_VOFA)
-    {
-      pfc_comm_deinit();
-      User_VOFA_UART_DeInit();
-      llc_uart_work_mode = LLC_UART_MODE_VOFA;
-      User_VOFA_Init();
-    }
-  else
-    {
-      User_VOFA_UART_DeInit();
-      llc_uart_work_mode = mode;
-      if(mode == LLC_UART_MODE_PFC_COMM)
-        {
-          pfc_comm_init();
-        }
-      else
-        {
-          pfc_comm_deinit();
-        }
-    }
-
-  can_send_16bit_simple(CMD_UART_MODE, (uint16_t)llc_uart_work_mode);
-}
 
 typedef struct __CAN_UserCtrlTypeDef
 {
@@ -59,7 +25,7 @@ typedef struct __CAN_UserCtrlTypeDef
 
 CAN_UserCtrlTypeDef user_can_ctrl;
 
-// CANï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ê±ï¿½ï¿½ï¿½ï¿½
+// CAN¿ØÖÆÑÓÊ±º¯Êý
 static inline void can_ctrl_delay(void)
 {
   CAN1->CTRL |= 1<<4;
@@ -86,10 +52,10 @@ static inline void can_ctrl_delay(void)
   CAN1->CTRL &= ~(1<<4);
 }
 // =============================================================================
-// 16Î»ï¿½ï¿½ï¿½Ý´ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
+// 16Î»Êý¾Ý´¦Àíº¯Êý
 // =============================================================================
 
-// 16Î»ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½È¡ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½CRCï¿½ï¿½
+// 16Î»Êý¾ÝÌáÈ¡º¯Êý£¨²»´øCRC£©
 static inline uint16_t extract_16bit_data(uint8_t start_index)
 {
   uint8_t current_rx_index = user_can_ctrl.rx_cnt;
@@ -98,69 +64,69 @@ static inline uint16_t extract_16bit_data(uint8_t start_index)
   return (high_byte << 8) | low_byte;
 }
 
-// 16Î»ï¿½ï¿½ï¿½Ý´ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½CRCï¿½ï¿½
+// 16Î»Êý¾Ý´¦Àíº¯Êý£¨²»´øCRC£©
 RAMCODE
 bool process_16bit_simple(uint8_t cmd, uint16_t* result_value)
 {
   uint8_t current_rx_index = user_can_ctrl.rx_cnt;
 
-  // ï¿½ï¿½Ö¤ï¿½ï¿½ï¿½Ý³ï¿½ï¿½È£ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Òª4ï¿½Ö½Ú£ï¿½ï¿½ï¿½ï¿½ï¿½+ï¿½ï¿½ï¿½ï¿½+2ï¿½Ö½ï¿½ï¿½ï¿½ï¿½Ý£ï¿½
+  // ÑéÖ¤Êý¾Ý³¤¶È£¨ÖÁÉÙÐèÒª4×Ö½Ú£º±£Áô+ÃüÁî+2×Ö½ÚÊý¾Ý£©
   if (user_can_ctrl.rxbuf_fmt[current_rx_index].data_len_code < 4)
     {
       return false;
     }
 
-  // ï¿½ï¿½Ö¤ï¿½ï¿½ï¿½ï¿½
+  // ÑéÖ¤ÃüÁî
   uint8_t received_cmd = user_can_ctrl.rx_buf[current_rx_index][1];
   if(received_cmd != cmd)
     {
       return false;
     }
 
-  // ï¿½ï¿½È¡16Î»ï¿½ï¿½ï¿½ï¿½
+  // ÌáÈ¡16Î»Êý¾Ý
   *result_value = extract_16bit_data(2);
   return true;
 }
 
-// 16Î»ï¿½ï¿½ï¿½Ý´ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½CRCï¿½ï¿½
+// 16Î»Êý¾Ý´¦Àíº¯Êý£¨´øCRC£©
 RAMCODE
 bool process_16bit_with_crc(uint8_t cmd, uint16_t* result_value)
 {
   uint8_t current_rx_index = user_can_ctrl.rx_cnt;
 
-  // ï¿½ï¿½Ö¤ï¿½ï¿½ï¿½Ý³ï¿½ï¿½È£ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Òª5ï¿½Ö½Ú£ï¿½ï¿½ï¿½ï¿½ï¿½+ï¿½ï¿½ï¿½ï¿½+2ï¿½Ö½ï¿½ï¿½ï¿½ï¿½ï¿½+CRCï¿½ï¿½
+  // ÑéÖ¤Êý¾Ý³¤¶È£¨ÖÁÉÙÐèÒª5×Ö½Ú£º±£Áô+ÃüÁî+2×Ö½ÚÊý¾Ý+CRC£©
   if (user_can_ctrl.rxbuf_fmt[current_rx_index].data_len_code < 5)
     {
       return false;
     }
 
-  // ï¿½ï¿½Ö¤ï¿½ï¿½ï¿½ï¿½
+  // ÑéÖ¤ÃüÁî
   uint8_t received_cmd = user_can_ctrl.rx_buf[current_rx_index][1];
   if(received_cmd != cmd)
     {
       return false;
     }
 
-  // ï¿½ï¿½È¡ï¿½ï¿½ï¿½Ýºï¿½CRC
+  // ÌáÈ¡Êý¾ÝºÍCRC
   uint8_t low_byte = user_can_ctrl.rx_buf[current_rx_index][2];
   uint8_t high_byte = user_can_ctrl.rx_buf[current_rx_index][3];
   uint8_t received_crc = user_can_ctrl.rx_buf[current_rx_index][4];
 
-  // ï¿½ï¿½Ö¤CRC
+  // ÑéÖ¤CRC
   uint8_t crc_data[3] = {received_cmd, low_byte, high_byte};
   uint8_t calculated_crc = crc8(crc_data, sizeof(crc_data));
 
   if(calculated_crc != received_crc)
     {
-      return false; // CRCÐ£ï¿½ï¿½Ê§ï¿½ï¿½
+      return false; // CRCÐ£ÑéÊ§°Ü
     }
 
-  // ï¿½ï¿½×°ï¿½ï¿½ï¿½ï¿½
+  // ×é×°Êý¾Ý
   *result_value = (high_byte << 8) | low_byte;
   return true;
 }
 
-// 16Î»ï¿½ï¿½ï¿½Ý·ï¿½ï¿½Íºï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½CRCï¿½ï¿½
+// 16Î»Êý¾Ý·¢ËÍº¯Êý£¨²»´øCRC£©
 RAMCODE
 void can_send_16bit_simple(uint8_t cmd, uint16_t value)
 {
@@ -168,10 +134,10 @@ void can_send_16bit_simple(uint8_t cmd, uint16_t value)
 
   uint8_t data_bytes[4] =
   {
-    0x00,                          // ï¿½ï¿½ï¿½ï¿½ï¿½Ö½ï¿½
-    cmd,                           // ï¿½ï¿½ï¿½ï¿½
-    (uint8_t)(value & 0xFF),       // ï¿½ï¿½ï¿½Ö½ï¿½
-    (uint8_t)((value >> 8) & 0xFF) // ï¿½ï¿½ï¿½Ö½ï¿½
+    0x00,                          // ±£Áô×Ö½Ú
+    cmd,                           // ÃüÁî
+    (uint8_t)(value & 0xFF),       // µÍ×Ö½Ú
+    (uint8_t)((value >> 8) & 0xFF) // ¸ß×Ö½Ú
   };
 
   tx_buf_fmt.id_extension = 1;
@@ -182,7 +148,7 @@ void can_send_16bit_simple(uint8_t cmd, uint16_t value)
   LL_CAN_TransmitPTB_CPU(CAN1, &tx_buf_fmt, (uint32_t*)data_bytes);
 }
 
-// 16Î»ï¿½ï¿½ï¿½Ý·ï¿½ï¿½Íºï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½CRCï¿½ï¿½
+// 16Î»Êý¾Ý·¢ËÍº¯Êý£¨´øCRC£©
 RAMCODE
 void can_send_16bit_with_crc(uint8_t cmd, uint16_t value)
 {
@@ -191,16 +157,16 @@ void can_send_16bit_with_crc(uint8_t cmd, uint16_t value)
   uint8_t low_byte = (uint8_t)(value & 0xFF);
   uint8_t high_byte = (uint8_t)((value >> 8) & 0xFF);
 
-  // ï¿½ï¿½ï¿½ï¿½CRC
+  // ¼ÆËãCRC
   uint8_t crc_data[3] = {cmd, low_byte, high_byte};
   uint8_t crc = crc8(crc_data, sizeof(crc_data));
 
   uint8_t data_bytes[5] =
   {
-    0x00,      // ï¿½ï¿½ï¿½ï¿½ï¿½Ö½ï¿½
-    cmd,       // ï¿½ï¿½ï¿½ï¿½
-    low_byte,  // ï¿½ï¿½ï¿½Ö½ï¿½
-    high_byte, // ï¿½ï¿½ï¿½Ö½ï¿½
+    0x00,      // ±£Áô×Ö½Ú
+    cmd,       // ÃüÁî
+    low_byte,  // µÍ×Ö½Ú
+    high_byte, // ¸ß×Ö½Ú
     crc        // CRC
   };
 
@@ -213,17 +179,17 @@ void can_send_16bit_with_crc(uint8_t cmd, uint16_t value)
 }
 
 // =============================================================================
-// 32Î»ï¿½ï¿½ï¿½Ý´ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
+// 32Î»Êý¾Ý´¦Àíº¯Êý
 // =============================================================================
 
-// 32Î»ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½È¡ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½CRCï¿½ï¿½
+// 32Î»Êý¾ÝÌáÈ¡º¯Êý£¨²»´øCRC£©
 static inline uint32_t extract_32bit_data(uint8_t start_index)
 {
   uint8_t current_rx_index = user_can_ctrl.rx_cnt;
-  uint8_t byte0 = user_can_ctrl.rx_buf[current_rx_index][start_index];     // ï¿½ï¿½ï¿½ï¿½Ö½ï¿½
+  uint8_t byte0 = user_can_ctrl.rx_buf[current_rx_index][start_index];     // ×îµÍ×Ö½Ú
   uint8_t byte1 = user_can_ctrl.rx_buf[current_rx_index][start_index + 1];
   uint8_t byte2 = user_can_ctrl.rx_buf[current_rx_index][start_index + 2];
-  uint8_t byte3 = user_can_ctrl.rx_buf[current_rx_index][start_index + 3]; // ï¿½ï¿½ï¿½ï¿½Ö½ï¿½
+  uint8_t byte3 = user_can_ctrl.rx_buf[current_rx_index][start_index + 3]; // ×î¸ß×Ö½Ú
 
   return ((uint32_t)byte3 << 24) |
          ((uint32_t)byte2 << 16) |
@@ -231,99 +197,99 @@ static inline uint32_t extract_32bit_data(uint8_t start_index)
          byte0;
 }
 
-// 32Î»ï¿½ï¿½ï¿½Ý´ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½CRCï¿½ï¿½
+// 32Î»Êý¾Ý´¦Àíº¯Êý£¨²»´øCRC£©
 RAMCODE
 bool process_32bit_simple(uint8_t cmd, uint32_t* result_value)
 {
   uint8_t current_rx_index = user_can_ctrl.rx_cnt;
 
-  // ï¿½ï¿½Ö¤ï¿½ï¿½ï¿½Ý³ï¿½ï¿½È£ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Òª6ï¿½Ö½Ú£ï¿½ï¿½ï¿½ï¿½ï¿½+ï¿½ï¿½ï¿½ï¿½+4ï¿½Ö½ï¿½ï¿½ï¿½ï¿½Ý£ï¿½
+  // ÑéÖ¤Êý¾Ý³¤¶È£¨ÖÁÉÙÐèÒª6×Ö½Ú£º±£Áô+ÃüÁî+4×Ö½ÚÊý¾Ý£©
   if (user_can_ctrl.rxbuf_fmt[current_rx_index].data_len_code < 6)
     {
       return false;
     }
 
-  // ï¿½ï¿½Ö¤ï¿½ï¿½ï¿½ï¿½
+  // ÑéÖ¤ÃüÁî
   uint8_t received_cmd = user_can_ctrl.rx_buf[current_rx_index][1];
   if(received_cmd != cmd)
     {
       return false;
     }
 
-  // ï¿½ï¿½È¡32Î»ï¿½ï¿½ï¿½ï¿½
+  // ÌáÈ¡32Î»Êý¾Ý
   *result_value = extract_32bit_data(2);
   return true;
 }
 
-// 32Î»ï¿½ï¿½ï¿½ï¿½CRCï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
+// 32Î»Êý¾ÝCRC´¦Àíº¯Êý
 RAMCODE
 bool process_32bit_with_crc(uint8_t cmd, float* result_value, int scale_factor)
 {
   uint8_t current_rx_index = user_can_ctrl.rx_cnt;
 
-  // ï¿½ï¿½Ö¤ï¿½ï¿½ï¿½Ý³ï¿½ï¿½È£ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Òª7ï¿½Ö½Ú£ï¿½ï¿½ï¿½ï¿½ï¿½+ï¿½ï¿½ï¿½ï¿½+4ï¿½Ö½ï¿½ï¿½ï¿½ï¿½ï¿½+CRCï¿½ï¿½
+  // ÑéÖ¤Êý¾Ý³¤¶È£¨ÖÁÉÙÐèÒª7×Ö½Ú£º±£Áô+ÃüÁî+4×Ö½ÚÊý¾Ý+CRC£©
   if (user_can_ctrl.rxbuf_fmt[current_rx_index].data_len_code < 7)
     {
       return false;
     }
 
-  // ï¿½ï¿½È¡ï¿½ï¿½ï¿½Õµï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
+  // ÌáÈ¡½ÓÊÕµ½µÄÊý¾Ý
   uint8_t received_cmd = user_can_ctrl.rx_buf[current_rx_index][1];
-  uint8_t data_byte0 = user_can_ctrl.rx_buf[current_rx_index][2];  // ï¿½ï¿½ï¿½Î»ï¿½Ö½ï¿½
+  uint8_t data_byte0 = user_can_ctrl.rx_buf[current_rx_index][2];  // ×îµÍÎ»×Ö½Ú
   uint8_t data_byte1 = user_can_ctrl.rx_buf[current_rx_index][3];
   uint8_t data_byte2 = user_can_ctrl.rx_buf[current_rx_index][4];
-  uint8_t data_byte3 = user_can_ctrl.rx_buf[current_rx_index][5];  // ï¿½ï¿½ï¿½Î»ï¿½Ö½ï¿½
+  uint8_t data_byte3 = user_can_ctrl.rx_buf[current_rx_index][5];  // ×î¸ßÎ»×Ö½Ú
   uint8_t received_crc = user_can_ctrl.rx_buf[current_rx_index][6];
 
-  // ï¿½ï¿½Ö¤ï¿½ï¿½ï¿½ï¿½ï¿½Ç·ï¿½Æ¥ï¿½ï¿½
+  // ÑéÖ¤ÃüÁîÊÇ·ñÆ¥Åä
   if(received_cmd != cmd)
     {
       return false;
     }
 
-  // ï¿½Ø½ï¿½CRCï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ý£ï¿½ï¿½ï¿½ï¿½ï¿½+4ï¿½Ö½ï¿½ï¿½ï¿½ï¿½Ý£ï¿½
+  // ÖØ½¨CRC¼ÆËãÊý¾Ý£¨ÃüÁî+4×Ö½ÚÊý¾Ý£©
   uint8_t crc_data[5] = {received_cmd, data_byte0, data_byte1, data_byte2, data_byte3};
   uint8_t calculated_crc = crc8(crc_data, sizeof(crc_data));
 
-  // ï¿½ï¿½Ö¤CRC
+  // ÑéÖ¤CRC
   if(calculated_crc != received_crc)
     {
-      return false; // CRCÐ£ï¿½ï¿½Ê§ï¿½ï¿½
+      return false; // CRCÐ£ÑéÊ§°Ü
     }
 
-  // ï¿½ï¿½ï¿½ï¿½32Î»ï¿½ï¿½ï¿½ï¿½
+  // ÖØ×é32Î»Êý¾Ý
   uint32_t raw_value = ((uint32_t)data_byte3 << 24) |
                        ((uint32_t)data_byte2 << 16) |
                        ((uint32_t)data_byte1 << 8) |
                        data_byte0;
 
-  // ×ªï¿½ï¿½Îªï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
+  // ×ª»»Îª¸¡µãÊý
   float float_value = (float)raw_value / (float)scale_factor;
 
-//  // ï¿½ï¿½Î§ï¿½ï¿½é£¨KP/KIÍ¨ï¿½ï¿½ï¿½ï¿½0-100000ï¿½ï¿½Î§ï¿½Ú£ï¿½
+//  // ·¶Î§¼ì²é£¨KP/KIÍ¨³£ÔÚ0-100000·¶Î§ÄÚ£©
 //  if(float_value < 0.0f || float_value > 100000.0f)
 //    {
-//      return false; // ï¿½ï¿½Öµï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Î§
+//      return false; // ÊýÖµ³¬³ö·¶Î§
 //    }
 
-  // ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
+  // Êä³ö½á¹û
   *result_value = float_value;
   return true;
 }
 
-// 32Î»ï¿½ï¿½ï¿½Ý´ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½CRCï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ô­Ê¼ï¿½ï¿½ï¿½Ý£ï¿½
+// 32Î»Êý¾Ý´¦Àíº¯Êý£¨´øCRC£¬·µ»ØÔ­Ê¼Êý¾Ý£©
 RAMCODE
 bool process_32bit_with_crc_raw(uint8_t cmd, uint32_t* result_value)
 {
   uint8_t current_rx_index = user_can_ctrl.rx_cnt;
 
-  // ï¿½ï¿½Ö¤ï¿½ï¿½ï¿½Ý³ï¿½ï¿½È£ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Òª7ï¿½Ö½Ú£ï¿½ï¿½ï¿½ï¿½ï¿½+ï¿½ï¿½ï¿½ï¿½+4ï¿½Ö½ï¿½ï¿½ï¿½ï¿½ï¿½+CRCï¿½ï¿½
+  // ÑéÖ¤Êý¾Ý³¤¶È£¨ÖÁÉÙÐèÒª7×Ö½Ú£º±£Áô+ÃüÁî+4×Ö½ÚÊý¾Ý+CRC£©
   if (user_can_ctrl.rxbuf_fmt[current_rx_index].data_len_code < 7)
     {
       return false;
     }
 
-  // ï¿½ï¿½È¡ï¿½ï¿½ï¿½Õµï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
+  // ÌáÈ¡½ÓÊÕµ½µÄÊý¾Ý
   uint8_t received_cmd = user_can_ctrl.rx_buf[current_rx_index][1];
   uint8_t data_byte0 = user_can_ctrl.rx_buf[current_rx_index][2];
   uint8_t data_byte1 = user_can_ctrl.rx_buf[current_rx_index][3];
@@ -331,13 +297,13 @@ bool process_32bit_with_crc_raw(uint8_t cmd, uint32_t* result_value)
   uint8_t data_byte3 = user_can_ctrl.rx_buf[current_rx_index][5];
   uint8_t received_crc = user_can_ctrl.rx_buf[current_rx_index][6];
 
-  // ï¿½ï¿½Ö¤ï¿½ï¿½ï¿½ï¿½
+  // ÑéÖ¤ÃüÁî
   if(received_cmd != cmd)
     {
       return false;
     }
 
-  // ï¿½ï¿½Ö¤CRC
+  // ÑéÖ¤CRC
   uint8_t crc_data[5] = {received_cmd, data_byte0, data_byte1, data_byte2, data_byte3};
   uint8_t calculated_crc = crc8(crc_data, sizeof(crc_data));
 
@@ -346,7 +312,7 @@ bool process_32bit_with_crc_raw(uint8_t cmd, uint32_t* result_value)
       return false;
     }
 
-  // ï¿½ï¿½ï¿½ï¿½32Î»ï¿½ï¿½ï¿½ï¿½
+  // ÖØ×é32Î»Êý¾Ý
   *result_value = ((uint32_t)data_byte3 << 24) |
                   ((uint32_t)data_byte2 << 16) |
                   ((uint32_t)data_byte1 << 8) |
@@ -355,7 +321,7 @@ bool process_32bit_with_crc_raw(uint8_t cmd, uint32_t* result_value)
   return true;
 }
 
-// 32Î»ï¿½ï¿½ï¿½Ý·ï¿½ï¿½Íºï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½CRCï¿½ï¿½
+// 32Î»Êý¾Ý·¢ËÍº¯Êý£¨²»´øCRC£©
 RAMCODE
 void can_send_32bit_simple(uint8_t cmd, uint32_t value)
 {
@@ -363,12 +329,12 @@ void can_send_32bit_simple(uint8_t cmd, uint32_t value)
 
   uint8_t data_bytes[6] =
   {
-    0x00,                             // ï¿½ï¿½ï¿½ï¿½ï¿½Ö½ï¿½
-    cmd,                              // ï¿½ï¿½ï¿½ï¿½
-    (uint8_t)(value & 0xFF),          // byte0 (ï¿½ï¿½ï¿½ï¿½Ö½ï¿½)
+    0x00,                             // ±£Áô×Ö½Ú
+    cmd,                              // ÃüÁî
+    (uint8_t)(value & 0xFF),          // byte0 (×îµÍ×Ö½Ú)
     (uint8_t)((value >> 8) & 0xFF),   // byte1
     (uint8_t)((value >> 16) & 0xFF),  // byte2
-    (uint8_t)((value >> 24) & 0xFF)   // byte3 (ï¿½ï¿½ï¿½ï¿½Ö½ï¿½)
+    (uint8_t)((value >> 24) & 0xFF)   // byte3 (×î¸ß×Ö½Ú)
   };
 
   tx_buf_fmt.id_extension = 1;
@@ -379,7 +345,7 @@ void can_send_32bit_simple(uint8_t cmd, uint32_t value)
   LL_CAN_TransmitPTB_CPU(CAN1, &tx_buf_fmt, (uint32_t*)data_bytes);
 }
 
-// 32Î»ï¿½ï¿½ï¿½Ý·ï¿½ï¿½Íºï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½CRCï¿½ï¿½
+// 32Î»Êý¾Ý·¢ËÍº¯Êý£¨´øCRC£©
 RAMCODE
 void can_send_32bit_with_crc(uint8_t cmd, uint32_t value)
 {
@@ -390,18 +356,18 @@ void can_send_32bit_with_crc(uint8_t cmd, uint32_t value)
   uint8_t byte2 = (uint8_t)((value >> 16) & 0xFF);
   uint8_t byte3 = (uint8_t)((value >> 24) & 0xFF);
 
-  // ï¿½ï¿½ï¿½ï¿½CRC
+  // ¼ÆËãCRC
   uint8_t crc_data[5] = {cmd, byte0, byte1, byte2, byte3};
   uint8_t crc = crc8(crc_data, sizeof(crc_data));
 
   uint8_t data_bytes[7] =
   {
-    0x00,   // ï¿½ï¿½ï¿½ï¿½ï¿½Ö½ï¿½
-    cmd,    // ï¿½ï¿½ï¿½ï¿½
-    byte0,  // ï¿½ï¿½ï¿½ï¿½Ö½ï¿½
+    0x00,   // ±£Áô×Ö½Ú
+    cmd,    // ÃüÁî
+    byte0,  // ×îµÍ×Ö½Ú
     byte1,
     byte2,
-    byte3,  // ï¿½ï¿½ï¿½ï¿½Ö½ï¿½
+    byte3,  // ×î¸ß×Ö½Ú
     crc     // CRC
   };
 
@@ -413,7 +379,7 @@ void can_send_32bit_with_crc(uint8_t cmd, uint32_t value)
   LL_CAN_TransmitPTB_CPU(CAN1, &tx_buf_fmt, (uint32_t*)data_bytes);
 }
 
-// 32Î»ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Íºï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½CRCï¿½ï¿½ï¿½ï¿½ï¿½Å£ï¿½
+// 32Î»¸¡µãÊý·¢ËÍº¯Êý£¨´øCRCºÍËõ·Å£©
 RAMCODE
 void can_send_32bit_float_with_crc(uint8_t cmd, float value, int scale_factor)
 {
@@ -421,18 +387,6 @@ void can_send_32bit_float_with_crc(uint8_t cmd, float value, int scale_factor)
   can_send_32bit_with_crc(cmd, scaled_value);
 }
 
-RAMCODE
-static void can_send_8bytes(uint8_t data_bytes[8])
-{
-  CAN_TxBufFormatTypeDef tx_buf_fmt;
-
-  tx_buf_fmt.id_extension = 1;
-  tx_buf_fmt.id = __LL_CAN_FrameIDFormat_29Bits(llc.can_addr);
-  tx_buf_fmt.data_len_code = 8;
-  tx_buf_fmt.remote_tx_req = 0;
-
-  LL_CAN_TransmitPTB_CPU(CAN1, &tx_buf_fmt, (uint32_t*)data_bytes);
-}
 RAMCODE
 void process_common_commands(uint8_t can_cmd, uint32_t received_id)
 {
@@ -463,30 +417,6 @@ void process_common_commands(uint8_t can_cmd, uint32_t received_id)
             llc.start_contr = 0;
             break;
 
-
-        case CMD_UART_MODE:
-        {
-            uint8_t mode = user_can_ctrl.rx_buf[user_can_ctrl.rx_cnt][2];
-            llc_uart_apply_mode(mode);
-        }
-        break;
-        case CMD_PFC_INPUT_OVP:
-        case CMD_PFC_INPUT_UVP:
-        case CMD_PFC_OUTPUT_OVP:
-        case CMD_PFC_OUTPUT_UVP:
-        case CMD_PFC_INPUT_OCP:
-        case CMD_PFC_DATA:
-        case CMD_PFC_DATA_LIVE1:
-        case CMD_PFC_DATA_LIVE2:
-        {
-            uint8_t frame[8];
-            if(pfc_comm_fill_can_response(can_cmd, frame))
-              {
-                can_ctrl_delay();
-                can_send_8bytes(frame);
-              }
-        }
-        break;
         case CMD_STORE_FLASH:
             save_data_flash();
             save_data_to_flash(&user_data);
@@ -506,7 +436,7 @@ void process_common_commands(uint8_t can_cmd, uint32_t received_id)
             llc.temp_recover_mode = user_data.temp_recover_mode;
             break;
 
-        case CMD_OVERTEMP_POINT:  // ï¿½ï¿½ï¿½Âµã£¨16Î»ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½CRCï¿½ï¿½
+        case CMD_OVERTEMP_POINT:  // ¹ýÎÂµã£¨16Î»£¬²»´øCRC£©
         {
             uint16_t rx_data_16;
             if(process_16bit_simple(CMD_OVERTEMP_POINT, &rx_data_16)) {
@@ -516,7 +446,7 @@ void process_common_commands(uint8_t can_cmd, uint32_t received_id)
         }
         break;
 
-        case CMD_OVERTEMP_REC_POINT:  // ï¿½ï¿½ï¿½Â»Ö¸ï¿½ï¿½ã£¨16Î»ï¿½ï¿½ï¿½ï¿½CRCï¿½ï¿½
+        case CMD_OVERTEMP_REC_POINT:  // ¹ýÎÂ»Ö¸´µã£¨16Î»£¬´øCRC£©
         {
             uint16_t rx_data_16;
             if(process_16bit_with_crc(CMD_OVERTEMP_REC_POINT, &rx_data_16)) {
@@ -526,7 +456,7 @@ void process_common_commands(uint8_t can_cmd, uint32_t received_id)
         }
         break;
 
-        case CMD_FACTOR_VOLTAGE:  // Ð£×¼ï¿½ï¿½Ñ¹ï¿½ï¿½16Î»ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½CRCï¿½ï¿½
+        case CMD_FACTOR_VOLTAGE:  // Ð£×¼µçÑ¹£¨16Î»£¬²»´øCRC£©
         {
             uint16_t rx_data_16;
             if(process_16bit_simple(CMD_FACTOR_VOLTAGE, &rx_data_16)) {
@@ -535,7 +465,7 @@ void process_common_commands(uint8_t can_cmd, uint32_t received_id)
         }
         break;
 
-        case CMD_THEOR_VOLTAGE:  // ï¿½ï¿½ï¿½Ûµï¿½Ñ¹ï¿½ï¿½16Î»ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½CRCï¿½ï¿½
+        case CMD_THEOR_VOLTAGE:  // ÀíÂÛµçÑ¹£¨16Î»£¬²»´øCRC£©
         {
             uint16_t rx_data_16;
             if(process_16bit_simple(CMD_THEOR_VOLTAGE, &rx_data_16)) {
@@ -573,29 +503,29 @@ void process_common_commands(uint8_t can_cmd, uint32_t received_id)
 
 						if(llc.crc_data == llc.voltage_crc)
 						{
-								float factor_voltage_float = llc.factor_voltage / 1000.0f; // ï¿½ï¿½Ç°ï¿½ï¿½ï¿½ï¿½/ï¿½ï¿½Î»ï¿½ï¿½ï¿½ï¿½Ê¾Öµ
-								float theor_voltage_float  = llc.theor_voltage  / 1000.0f; // ï¿½ï¿½ï¿½Ã±ï¿½ï¿½ï¿½ÊµÖµ
+								float factor_voltage_float = llc.factor_voltage / 1000.0f; // µ±Ç°²ÉÑù/ÉÏÎ»»úÏÔÊ¾Öµ
+								float theor_voltage_float  = llc.theor_voltage  / 1000.0f; // ÍòÓÃ±íÕæÊµÖµ
 
 								if((factor_voltage_float > 1.0f) && (theor_voltage_float > 1.0f))
 								{
 										/*
-										 * ï¿½ï¿½ï¿½ï¿½Ä¿ï¿½ï¿½Ð£×¼ï¿½ï¿½
-										 * ï¿½ï¿½ï¿½çµ±Ç°Ä¿ï¿½ï¿½48.19Vï¿½ï¿½Êµï¿½ï¿½Ó¦Îª48.00V
-										 * ï¿½ï¿½Ä¿ï¿½ï¿½ = Ô­Ä¿ï¿½ï¿½ / ï¿½ï¿½Ç°ï¿½ï¿½Ê¾Öµ * ï¿½ï¿½ÊµÖµ
+										 * ¿ØÖÆÄ¿±êÐ£×¼£º
+										 * ÀýÈçµ±Ç°Ä¿±ê48.19V£¬Êµ¼ÊÓ¦Îª48.00V
+										 * ÐÂÄ¿±ê = Ô­Ä¿±ê / µ±Ç°ÏÔÊ¾Öµ * ÕæÊµÖµ
 										 */
 										user_data.coef_target = 
 												(llc.vbus_target / factor_voltage_float) * theor_voltage_float;
 
 										/*
-										 * ï¿½ï¿½Ê¾ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
-										 * ï¿½ï¿½Î»ï¿½ï¿½ï¿½ï¿½Ê¾Öµ = llc.vbus_rel - llc.can_com_voltag_delta
-										 * ï¿½ï¿½ï¿½ï¿½ 48.19 - 0.19 = 48.00
+										 * ÏÔÊ¾²¹³¥£º
+										 * ÉÏÎ»»úÏÔÊ¾Öµ = llc.vbus_rel - llc.can_com_voltag_delta
+										 * ÀýÈç 48.19 - 0.19 = 48.00
 										 */
 										user_data.vout_can_delta = 
 												factor_voltage_float - theor_voltage_float;
 
 										/*
-										 * Ä¿ï¿½ï¿½ï¿½Ñ¹ï¿½ï¿½ï¿½48Vï¿½ï¿½Æ«ï¿½ï¿½ï¿½ï¿½
+										 * Ä¿±êµçÑ¹Ïà¶Ô48VµÄÆ«ÒÆÁ¿
 										 */
 										user_data.vout_trim_delta = 
 												user_data.coef_target - 48.0f;
@@ -631,7 +561,7 @@ void process_common_commands(uint8_t can_cmd, uint32_t received_id)
 //				}
 //				break;
 
-        case CMD_KP:  // KPï¿½ï¿½ï¿½ï¿½ï¿½ï¿½32Î»ï¿½ï¿½ï¿½ï¿½CRCï¿½ï¿½ï¿½ï¿½ï¿½ã£©
+        case CMD_KP:  // KP²ÎÊý£¨32Î»£¬´øCRC£¬¸¡µã£©
         {
             float float_value;
 //					if(llc.para_scale_factor_is_ok)
@@ -645,7 +575,7 @@ void process_common_commands(uint8_t can_cmd, uint32_t received_id)
         }
         break;
 
-        case CMD_KI:  // KIï¿½ï¿½ï¿½ï¿½ï¿½ï¿½32Î»ï¿½ï¿½ï¿½ï¿½CRCï¿½ï¿½ï¿½ï¿½ï¿½ã£©
+        case CMD_KI:  // KI²ÎÊý£¨32Î»£¬´øCRC£¬¸¡µã£©
         {
             float float_value;
 //					if(llc.para_scale_factor_is_ok)
@@ -659,7 +589,7 @@ void process_common_commands(uint8_t can_cmd, uint32_t received_id)
         }
         break;
 
-        case CMD_TEST:  // ï¿½ï¿½ï¿½Ô²ï¿½ï¿½ï¿½ï¿½ï¿½32Î»ï¿½ï¿½ï¿½ï¿½CRCï¿½ï¿½
+        case CMD_TEST:  // ²âÊÔ²ÎÊý£¨32Î»£¬´øCRC£©
         {
             float rx_data_32;
 //					if(llc.para_scale_factor_is_ok)
@@ -674,7 +604,7 @@ void process_common_commands(uint8_t can_cmd, uint32_t received_id)
         }
         break;
 
-        case CMD_TEST2:  // ï¿½ï¿½ï¿½Ô²ï¿½ï¿½ï¿½2ï¿½ï¿½32Î»ï¿½ï¿½ï¿½ï¿½CRCï¿½ï¿½
+        case CMD_TEST2:  // ²âÊÔ²ÎÊý2£¨32Î»£¬´øCRC£©
         {
             float rx_data_32;
 //					if(llc.para_scale_factor_is_ok)
@@ -688,7 +618,7 @@ void process_common_commands(uint8_t can_cmd, uint32_t received_id)
         break;
 
         default:
-            // Î´Öªï¿½ï¿½ï¿½î£¬ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ö¾ï¿½ï¿½Â¼
+            // Î´ÖªÃüÁî£¬¿ÉÒÔÌí¼ÓÈÕÖ¾¼ÇÂ¼
             break;
     }
 }
@@ -743,14 +673,14 @@ void can_init_app(void)
   user_can_ctrl.txbuf_fmt.id_extension = 1;
   user_can_ctrl.txbuf_fmt.id = __LL_CAN_FrameIDFormat_29Bits(USER_CAN_STD_FRM_ID);
 
-  // ï¿½ï¿½ï¿½Ã½ï¿½ï¿½Õ»ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ê½
+  // ÅäÖÃ½ÓÊÕ»º³åÇø¸ñÊ½
   for(int i = 0; i < USER_CAN_RX_FRM_NUMS; i++)
     {
       user_can_ctrl.rxbuf_fmt[i].id_extension = 1;
       user_can_ctrl.rxbuf_fmt[i].data_len_code = 8;
     }
 
-  // ï¿½ï¿½ï¿½ï¿½CANï¿½ï¿½ï¿½ï¿½ï¿½Ð¶ï¿½
+  // ¼¤»îCAN½ÓÊÕÖÐ¶Ï
   LL_CAN_Receive_IT(user_can_ctrl.Instance, &user_can_ctrl.rxbuf_fmt[0], user_can_ctrl.rx_buf[0]);
   for(int i = 0; i < 8; i++)
     {
@@ -901,37 +831,34 @@ void LL_CAN_RxCallback(CAN_TypeDef* Instance)
                 break;
 
             case 0xB0000:
-                // HLDï¿½è±¸ï¿½ï¿½ï¿½ï¿½
+                // HLDÉè±¸´¦Àí
                 process_common_commands(can_cmd, received_id);
                 break;
 
             case IAP_CAN_ID:
-                // IAP target: LLC handles itself, PFC is forwarded through UART0.
-                if(user_can_ctrl.rx_buf[user_can_ctrl.rx_cnt][1] == 0x41) {
-                    if(user_can_ctrl.rx_buf[user_can_ctrl.rx_cnt][0] == 2) {
-                        NVIC_SystemReset();
-                    } else if(user_can_ctrl.rx_buf[user_can_ctrl.rx_cnt][0] == 1) {
-                        pfc_iap_forward_can_frame(user_can_ctrl.rx_buf[user_can_ctrl.rx_cnt],
-                                                  user_can_ctrl.rxbuf_fmt[user_can_ctrl.rx_cnt].data_len_code);
-                    }
+                // IAP´¦Àí
+                if((user_can_ctrl.rx_buf[user_can_ctrl.rx_cnt][0] == 2 ||  // LLC: 2, PFC: 1
+                    user_can_ctrl.rx_buf[user_can_ctrl.rx_cnt][0] == 1) &&
+                   user_can_ctrl.rx_buf[user_can_ctrl.rx_cnt][1] == 0x41) {
+                    NVIC_SystemReset();
                 }
                 break;
 
             default:
-                // ï¿½ï¿½ï¿½ï¿½Ç·ï¿½ÎªLLCï¿½è±¸ï¿½ï¿½Î§ï¿½ï¿½IDï¿½ï¿½0xA0000-0xA0007ï¿½ï¿½
+                // ¼ì²éÊÇ·ñÎªLLCÉè±¸·¶Î§µÄID£¨0xA0000-0xA0007£©
                 if(received_id == llc.can_addr) {
                     process_common_commands(can_cmd, received_id);
                 }
                 break;
         }
 
-        // ï¿½ï¿½ï¿½Â½ï¿½ï¿½Õ¼ï¿½ï¿½ï¿½ï¿½ï¿½
+        // ¸üÐÂ½ÓÊÕ¼ÆÊýÆ÷
         user_can_ctrl.rx_cnt++;
         if(user_can_ctrl.rx_cnt >= USER_CAN_RX_FRM_NUMS) {
             user_can_ctrl.rx_cnt = 0;
         }
 
-        // ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½CANï¿½ï¿½ï¿½ï¿½ï¿½Ð¶ï¿½
+        // ¼ÌÐøÉèÖÃCAN½ÓÊÕÖÐ¶Ï
         LL_CAN_Receive_IT(user_can_ctrl.Instance, 
                          &user_can_ctrl.rxbuf_fmt[user_can_ctrl.rx_cnt], 
                          user_can_ctrl.rx_buf[user_can_ctrl.rx_cnt]);
@@ -971,7 +898,7 @@ void can_addr_set()
       llc.can_addr = 0xA0007;
       break;
     default:
-      llc.can_addr = 0xA0000; // Ä¬ï¿½ï¿½Öµ
+      llc.can_addr = 0xA0000; // Ä¬ÈÏÖµ
       break;
     }
 	 dev_index = llc.can_addr & 0x7;

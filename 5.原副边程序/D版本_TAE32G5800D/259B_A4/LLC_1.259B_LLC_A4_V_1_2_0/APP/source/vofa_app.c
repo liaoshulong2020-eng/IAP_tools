@@ -41,7 +41,6 @@ uint16_t rx_index = 0;
 float rx_vofa_data[rec_data_num];   //串口接收到的字符串数据经过处理后得到的浮点数据
 
 tx_fcunion tx_vofa_data;
-static uint8_t vofa_uart_inited = 0;
 
 uint8_t vofa_flog = 0;
 
@@ -115,10 +114,6 @@ int fputc(int ch, FILE* f)
 /* vofa串口初始化 */
 void User_VOFA_Init(void)
 {
-    if(vofa_uart_inited)
-      {
-        return;
-      }
     UART_InitTypeDef uartinitstruct;
 #if cesu  //测发送速度使用
     GPIO_InitTypeDef LED_GPIO_Init;
@@ -157,7 +152,6 @@ void User_VOFA_Init(void)
 
     LL_UART_Init(VOFA_UART, &uartinitstruct);
     LL_UART_Transmit_DMA(VOFA_UART, tx_vofa_data.c, 4 * (tx_data_num + 1));
-    vofa_uart_inited = 1;
 
 //    LL_UART_Receive_IT(VOFA_UART);
 }
@@ -165,13 +159,8 @@ void User_VOFA_Init(void)
 /*vofa串口去除初始化*/
 void User_VOFA_UART_DeInit(void)
 {
-    if(!vofa_uart_inited)
-      {
-        return;
-      }
-    DMA->CH[0].REG.CER = 0;
+    /* UART LL DeInit */
     LL_UART_DeInit(VOFA_UART);
-    vofa_uart_inited = 0;
 }
 
 

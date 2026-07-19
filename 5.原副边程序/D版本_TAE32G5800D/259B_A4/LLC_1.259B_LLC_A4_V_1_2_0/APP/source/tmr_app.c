@@ -1,6 +1,5 @@
 #include "main.h"
 #include "tmr_app.h"
-#include "pri_sec_commun_app.h"
 void loadshare_pwm_init(void)
 {
 
@@ -189,10 +188,7 @@ void TMR7_IRQHandler(void)
 //			tx_vofa_data.f[8] = llc.vloop.kp;
 //			tx_vofa_data.f[9] = llc.vloop.ki;
 
-if(llc_uart_work_mode == LLC_UART_MODE_VOFA)
-      {
-        user_vofa_tx();
-      }
+      user_vofa_tx();
 				
       if(!llc.time.test_1)
         {
@@ -218,7 +214,6 @@ void TMR8_IRQHandler(void)
         }
 				send_massage_get();
 				send_massage_share_get();
-      pfc_iap_forward_task();
 //			 llc.pr_output = updatePRController(&ctrl, llc.vbus_ref - llc.vbus_rel);
 //				llc.loadshare_value =llc.loadshare_value_store[0]+llc.loadshare_value_store[1] >> 10;
 

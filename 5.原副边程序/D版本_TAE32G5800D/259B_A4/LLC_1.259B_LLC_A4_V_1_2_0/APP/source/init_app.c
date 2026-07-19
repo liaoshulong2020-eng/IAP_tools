@@ -1,7 +1,5 @@
 #include "main.h"
 #include "init_app.h"
-#include "vofa_app.h"
-#include "pri_sec_commun_app.h"
 
 void flash_data_init(void)
 {
@@ -96,15 +94,12 @@ void init_all_app(void)
   tmr_init_app();
 
 	loadshare_pwm_init();
-if(llc_uart_work_mode == LLC_UART_MODE_VOFA)
-  {
-    User_VOFA_Init();
-  }
-else if(llc_uart_work_mode == LLC_UART_MODE_PFC_COMM)
-  {
-    pfc_comm_init();
-  }
+#if(!UART_FUNC)
+  User_VOFA_Init();
+#else
+  User_VOFA_Init();
   can_init_app();
+#endif
 	can_send_data_init();
   initPRController(&Volt_Rctrl);
 	reset_value();

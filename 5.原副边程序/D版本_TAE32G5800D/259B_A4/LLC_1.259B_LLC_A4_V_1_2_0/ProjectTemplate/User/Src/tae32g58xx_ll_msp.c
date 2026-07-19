@@ -170,8 +170,8 @@ void LL_UART_MspInit(UART_TypeDef* Instance)
 
     if(Instance == UART0)
         {
-            //UART0 Pinmux Config: PA9 & PA10
-            UART_GPIO_Init.Pin = GPIO_PIN_9 | GPIO_PIN_10;
+            //UART0 Pinmux Config: PA9
+            UART_GPIO_Init.Pin = GPIO_PIN_9;
             UART_GPIO_Init.Alternate = GPIO_AF8_UART0;
             LL_GPIO_Init(GPIOA, &UART_GPIO_Init);
 
@@ -218,7 +218,7 @@ void LL_UART_MspDeInit(UART_TypeDef *Instance)
         LL_RCU_UART0_ClkDisRstAssert();
 
         //UART0 Pinmux DeInit
-        LL_GPIO_DeInit(GPIOA, GPIO_PIN_9 | GPIO_PIN_10);
+        LL_GPIO_DeInit(GPIOC, GPIO_PIN_4 | GPIO_PIN_5);
 
     } else if (Instance == UART1) {
 

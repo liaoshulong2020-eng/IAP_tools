@@ -444,11 +444,6 @@
               <FilePath>..\..\..\APP\source\communication_app.c</FilePath>
             </File>
             <File>
-              <FileName>pri_sec_commun_app.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\..\..\APP\source\pri_sec_commun_app.c</FilePath>
-            </File>
-            <File>
               <FileName>func_app.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\..\..\APP\source\func_app.c</FilePath>
@@ -1101,11 +1096,6 @@
               <FileName>communication_app.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\..\..\APP\source\communication_app.c</FilePath>
-            </File>
-            <File>
-              <FileName>pri_sec_commun_app.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\..\..\APP\source\pri_sec_commun_app.c</FilePath>
             </File>
             <File>
               <FileName>func_app.c</FileName>
