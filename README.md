@@ -56,8 +56,7 @@
 
 桌面固定导出位置：
 
-- 上位机入口：`C:\Users\10412\Desktop\CAN_IAP_发布\烧录码\当前使用_259B_D版本_CAN升级PFC\CAN_TOOLS.exe`
-- IAP 命名入口：`C:\Users\10412\Desktop\CAN_IAP_发布\烧录码\当前使用_259B_D版本_CAN升级PFC\CAN_TOOLS_IAP.exe`
+- 上位机入口：`C:\Users\10412\Desktop\CAN_IAP_发布\烧录码\当前使用_259B_D版本_CAN升级PFC\CAN_TOOLS_IAP.exe`
 - GitHub 运行包：`release/current_259B_D_CAN_IAP`
 
 后续生成新的烧录码时，只保留最新一套文件。

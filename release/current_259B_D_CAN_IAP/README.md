@@ -6,8 +6,7 @@
 
 | 文件 | 用途 |
 |---|---|
-| `CAN_TOOLS.exe` | 推荐直接运行的上位机 |
-| `CAN_TOOLS_IAP.exe` | 同一份上位机的 IAP 命名副本 |
+| `CAN_TOOLS_IAP.exe` | 推荐直接运行的上位机 |
 | `CAN_TOOLS.dll` / `*.json` / `dll` | 运行依赖，需与 exe 放在同一目录 |
 
 ## 本次更新
