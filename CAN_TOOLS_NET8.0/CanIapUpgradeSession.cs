@@ -13,9 +13,9 @@ internal sealed class CanIapUpgradeSession
     private const int MaxMainRetries = 3;
     private const int MainRetryDelayMs = 5000;
     private const int WriteRetryDelayMs = 300;
-    private const int EnterProbeCount = 30;
+    private const int EnterProbeCount = 120;
     private const int EnterProbeDelayMs = 120;
-    private const int EnterProbeAckTimeoutMs = 1000;
+    private const int EnterProbeAckTimeoutMs = 180;
 
     private readonly Func<byte[], CancellationToken, Task> _sendPacketAsync;
     private readonly Func<CancellationToken, Task>? _recoverTransportAsync;
@@ -209,7 +209,7 @@ internal sealed class CanIapUpgradeSession
             return true;
         }
 
-        _log("等待 bootloader 启动并确认 IAP...");
+        _log("等待 bootloader 启动并确认 IAP，期间连续补发进入命令...");
         for (int probe = 1; probe <= EnterProbeCount; probe++)
         {
             await Task.Delay(EnterProbeDelayMs, token);
@@ -220,6 +220,9 @@ internal sealed class CanIapUpgradeSession
                 await Task.Delay(500, token);
                 return true;
             }
+
+            if (probe % 20 == 0)
+                _log($"仍在等待 bootloader IAP 确认，已补发 {probe} 次");
         }
 
         _log("未收到 bootloader 进入确认，停止本次尝试，避免继续反复复位");

@@ -233,6 +233,7 @@ namespace CAN_TOOLS
             CreatePowerLedLabels();
             CreateFirmwareUpgradeTab();
             CreateUartModeControls();
+            Text = "CAN工具 - 5800上位机 - IAP版";
         }
 
         private void NormalizeMainLayout()

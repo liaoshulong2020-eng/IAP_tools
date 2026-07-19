@@ -49,23 +49,26 @@
   - 版本矩阵、开发计划、工具共用性分析、验证记录。
 
 - `release`
-  - 发布说明和本地导出规则。正式 GitHub 源码仓库不建议提交大量二进制烧录产物。
+  - `current_259B_D_CAN_IAP` 为当前已验证的 259B D 版本 CAN IAP 上位机运行包。
+  - 当前版本优化了固定 ID `0xAA55` 进入 LLC IAP 的握手过程，APP 复位后会连续补发进入 IAP 命令，提高个别模块进入 bootloader 的成功率。
 
 ## 本地发布规则
 
 桌面固定导出位置：
 
-- 上位机入口：`C:\Users\10412\Desktop\CAN_TOOLS_IAP.exe`
-- 烧录码目录：`C:\Users\10412\Desktop\CAN_IAP_发布\烧录码`
+- 上位机入口：`C:\Users\10412\Desktop\CAN_IAP_发布\烧录码\当前使用_259B_D版本_CAN升级PFC\CAN_TOOLS.exe`
+- IAP 命名入口：`C:\Users\10412\Desktop\CAN_IAP_发布\烧录码\当前使用_259B_D版本_CAN升级PFC\CAN_TOOLS_IAP.exe`
+- GitHub 运行包：`release/current_259B_D_CAN_IAP`
 
 后续生成新的烧录码时，只保留最新一套文件。
 
 ## 当前验证建议
 
-1. 先用 JLink 烧录 `125k_JLink烧录` 文件，确保 APP 和 bootloader 都回到 125kbps。
-2. 再用桌面 `CAN_TOOLS_IAP.exe` 选择 `125k_在线升级.bin` 验证 LLC 在线升级。
-3. LLC 稳定后，再验证 LLC 经 UART 转发升级 PFC。
-4. PFC 验证通过后，再推进 C/D 两版本统一 bootloader 方案。
+1. 先确认普通 CAN 通讯可以读取 LLC 数据。
+2. LLC 在线升级优先选择固定 ID `0xAA55`。
+3. 如果日志显示“等待 bootloader 启动并确认 IAP，期间连续补发进入命令”，说明正在使用当前稳定版。
+4. LLC 稳定后，再验证 LLC 经 UART 转发升级 PFC。
+5. PFC 验证通过后，再推进 C/D 两版本统一 bootloader 方案。
 
 更多细节见：
 
