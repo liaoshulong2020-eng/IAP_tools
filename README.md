@@ -37,6 +37,22 @@ GitHub 当前发布目录：
 release/CAN_TOOLS_IAP
 ```
 
+当前 259B / TAE32G5800D 完整测试发布包：
+
+```text
+C:\Users\10412\Desktop\ZHLD_259B_5800D_IAP_当前发布
+```
+
+该发布包必须包含：
+
+| 目录 | 必须文件 | 用途 |
+| --- | --- | --- |
+| `01_上位机` | `CAN_TOOLS_IAP.exe` 及同目录 DLL/JSON 依赖 | CAN 上位机运行包。 |
+| `02_JLink合并烧录码` | `01_LLC_JLINK合并Bootloader_259B_5800D.bin` | LLC APP + LLC bootloader 合并文件，JLink 首次烧录用。 |
+| `02_JLink合并烧录码` | `02_PFC_JLINK合并Bootloader_259B_5800D.bin` | PFC APP + PFC bootloader 合并文件，JLink 首次烧录用。 |
+| `03_在线升级APP` | `LLC_IAP在线升级APP_259B_5800D.bin` | LLC 在线升级时选择的 APP 文件。 |
+| `03_在线升级APP` | `PFC_IAP在线升级APP_259B_5800D.bin` | PFC 经 LLC UART 转发在线升级时选择的 APP 文件。 |
+
 注意：
 
 - 上位机运行包不是烧录码，不再放到 `烧录码\当前使用_259B_D版本_CAN升级PFC` 这种目录。
