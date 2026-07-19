@@ -1683,10 +1683,10 @@ namespace CAN_TOOLS
                     return;
                 }
 
-                // 发送查询命令（自动刷新固定使用 0x20 作为主机地址）
+                // 发送查询命令（自动刷新使用 CAN通道1/2 输入框作为通讯ID）
                 if (m_bStart)
                 {
-                    SendSimpleCommand(CMD_QUERY, overrideMasterId: 0x20);
+                    SendSimpleCommand(CMD_QUERY);
                 }
 
                 // 计算均流度
@@ -3365,25 +3365,29 @@ namespace CAN_TOOLS
 
         private void Btn_addr1_20_Click(object? sender, EventArgs e)
         {
-            this.textBox_masterAddr1.Text = "20";
-            ValidateAndEnableCheckbox(this.textBox_masterAddr1, this.checkBox_ch1Enable);
+            SetBothMasterAddresses("20");
         }
 
         private void Btn_addr1_B0000_Click(object? sender, EventArgs e)
         {
-            this.textBox_masterAddr1.Text = "B0000";
-            ValidateAndEnableCheckbox(this.textBox_masterAddr1, this.checkBox_ch1Enable);
+            SetBothMasterAddresses("B0000");
         }
 
         private void Btn_addr2_20_Click(object? sender, EventArgs e)
         {
-            this.textBox_masterAddr2.Text = "20";
-            ValidateAndEnableCheckbox(this.textBox_masterAddr2, this.checkBox_ch2Enable);
+            SetBothMasterAddresses("21");
         }
 
         private void Btn_addr2_B0000_Click(object? sender, EventArgs e)
         {
-            this.textBox_masterAddr2.Text = "B0000";
+            SetBothMasterAddresses("BB208");
+        }
+
+        private void SetBothMasterAddresses(string hexAddress)
+        {
+            this.textBox_masterAddr1.Text = hexAddress;
+            this.textBox_masterAddr2.Text = hexAddress;
+            ValidateAndEnableCheckbox(this.textBox_masterAddr1, this.checkBox_ch1Enable);
             ValidateAndEnableCheckbox(this.textBox_masterAddr2, this.checkBox_ch2Enable);
         }
 

@@ -3533,7 +3533,7 @@ namespace CAN_TOOLS
             btn_addr2_20.Name = "btn_addr2_20";
             btn_addr2_20.Size = new Size(48, 26);
             btn_addr2_20.TabIndex = 8;
-            btn_addr2_20.Text = "0x20";
+            btn_addr2_20.Text = "0x21";
             btn_addr2_20.Click += Btn_addr2_20_Click;
             // 
             // btn_addr2_B0000
@@ -3542,7 +3542,7 @@ namespace CAN_TOOLS
             btn_addr2_B0000.Name = "btn_addr2_B0000";
             btn_addr2_B0000.Size = new Size(65, 26);
             btn_addr2_B0000.TabIndex = 9;
-            btn_addr2_B0000.Text = "0xB0000";
+            btn_addr2_B0000.Text = "0xBB208";
             btn_addr2_B0000.Click += Btn_addr2_B0000_Click;
             // 
             // checkBox_autoRefresh
