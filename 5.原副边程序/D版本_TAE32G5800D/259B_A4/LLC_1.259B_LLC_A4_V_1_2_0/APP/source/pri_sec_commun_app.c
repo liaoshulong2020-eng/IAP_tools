@@ -5,6 +5,8 @@
 
 static volatile PFC_REPORT_DATA_TypeDef pfc_report_cache;
 static volatile uint8_t pfc_comm_rx_buf[PFC_COMM_FRAME_TOTAL_SIZE];
+static volatile uint8_t pfc_comm_rx_byte = 0;
+static volatile uint16_t pfc_comm_rx_index = 0;
 static volatile uint8_t pfc_comm_inited = 0;
 static volatile uint8_t pfc_comm_valid = 0;
 static volatile uint32_t pfc_comm_rx_ok_count = 0;
@@ -279,6 +281,76 @@ static bool pfc_comm_parse_frame(const uint8_t *frame)
     return true;
 }
 
+static void pfc_comm_reset_parser(void)
+{
+    pfc_comm_rx_index = 0;
+}
+
+static void pfc_comm_parse_byte(uint8_t data)
+{
+    if(pfc_comm_rx_index == 0)
+    {
+        if(data != PFC_COMM_FRAME_HEADER)
+        {
+            return;
+        }
+
+        pfc_comm_rx_buf[pfc_comm_rx_index++] = data;
+        return;
+    }
+
+    if(pfc_comm_rx_index == 1)
+    {
+        if(data != PFC_COMM_CMD_DETAIL_INFO)
+        {
+            pfc_comm_reset_parser();
+            if(data == PFC_COMM_FRAME_HEADER)
+            {
+                pfc_comm_rx_buf[pfc_comm_rx_index++] = data;
+            }
+            return;
+        }
+
+        pfc_comm_rx_buf[pfc_comm_rx_index++] = data;
+        return;
+    }
+
+    if(pfc_comm_rx_index == 2)
+    {
+        if(data != (uint8_t)PFC_COMM_FRAME_DATA_SIZE)
+        {
+            pfc_comm_rx_err_count++;
+            pfc_comm_reset_parser();
+            if(data == PFC_COMM_FRAME_HEADER)
+            {
+                pfc_comm_rx_buf[pfc_comm_rx_index++] = data;
+            }
+            return;
+        }
+
+        pfc_comm_rx_buf[pfc_comm_rx_index++] = data;
+        return;
+    }
+
+    if(pfc_comm_rx_index >= PFC_COMM_FRAME_TOTAL_SIZE)
+    {
+        pfc_comm_rx_err_count++;
+        pfc_comm_reset_parser();
+        return;
+    }
+
+    pfc_comm_rx_buf[pfc_comm_rx_index++] = data;
+
+    if(pfc_comm_rx_index >= PFC_COMM_FRAME_TOTAL_SIZE)
+    {
+        if(!pfc_comm_parse_frame((const uint8_t *)pfc_comm_rx_buf))
+        {
+            pfc_comm_rx_err_count++;
+        }
+        pfc_comm_reset_parser();
+    }
+}
+
 void pfc_comm_init(void)
 {
     if(pfc_comm_inited)
@@ -298,7 +370,8 @@ void pfc_comm_init(void)
     LL_UART_Init(PFC_COMM_UART, &uart_init);
     __LL_UART_RxFull_INT_En(PFC_COMM_UART);
     LL_NVIC_SetPriority(UART0_IRQn, 4, 0);
-    LL_UART_Receive_IT(PFC_COMM_UART, (uint8_t *)pfc_comm_rx_buf, PFC_COMM_FRAME_TOTAL_SIZE);
+    pfc_comm_reset_parser();
+    LL_UART_Receive_IT(PFC_COMM_UART, (uint8_t *)&pfc_comm_rx_byte, 1);
     pfc_comm_inited = 1;
 }
 
@@ -508,11 +581,8 @@ void User_PfcComm_Uart_RxCpltCallback(void)
 {
     if(llc_uart_work_mode == LLC_UART_MODE_PFC_COMM)
     {
-        if(!pfc_comm_parse_frame((const uint8_t *)pfc_comm_rx_buf))
-        {
-            pfc_comm_rx_err_count++;
-        }
-        LL_UART_Receive_IT(PFC_COMM_UART, (uint8_t *)pfc_comm_rx_buf, PFC_COMM_FRAME_TOTAL_SIZE);
+        pfc_comm_parse_byte(pfc_comm_rx_byte);
+        LL_UART_Receive_IT(PFC_COMM_UART, (uint8_t *)&pfc_comm_rx_byte, 1);
     }
 }
 

@@ -97,6 +97,7 @@ release/CAN_TOOLS_IAP
 ### 3. LLC/PFC 程序和 bootloader
 
 - D 版本 LLC APP 已按 IAP 地址方式处理过，并能通过 JLink 合并烧录后运行。
+- 2026-07-19 继续优化 D 版 LLC 原副边通讯：PFC 上报帧接收由“整帧固定长度接收”改为“单字节状态机找帧头/帧尾”，避免切换模式或丢字节后一直错位，目标是修复 PFC 参数显示 `---`。
 - D 版本 PFC APP 已确认 UART 功能选择为原副边通讯时，PFC 程序本身可以 UART 收发。
 - LLC UART 硬件管脚确认：`PA9 / PA10`。
 - LLC 通过 CAN 读取 LLC 自身数据、保护点已经可用。
@@ -164,7 +165,7 @@ release/CAN_TOOLS_IAP
 | LLC 固定 ID 在线升级 | 基本可用 | 10 个模块中大部分可升级，但有个别模块仍进入 bootloader 成功率低。 |
 | LLC 保护点读取 | 可用 | 已能显示 LLC 保护点。 |
 | PFC UART 本体收发 | 已确认 | 断开 LLC 单独看 PFC，PFC 有 UART 数据。 |
-| PFC 数据经 LLC 上报 | 未闭环 | 上位机 PFC 区域仍显示 `---`，疑似 LLC 接收/解析/转换/上报链路未打通。 |
+| PFC 数据经 LLC 上报 | 待复测 | 2026-07-19 已将 LLC 侧 PFC UART 接收改为单字节同步解析，已生成测试烧录码，需实物验证 PFC 区域是否从 `---` 变为数据。 |
 | CAN 升级 PFC | 未完成 | 需要 LLC CAN-UART 转发 + PFC bootloader 共同验证。 |
 | C 版本原副边通讯 | 待回归 | 计划参考 259B 的 UART 应用层方式，底层参考 C 版官方 SDK。 |
 | D 版本 PFC bootloader | 待完整验证 | 后续重点。 |
@@ -215,6 +216,14 @@ release/CAN_TOOLS_IAP
 | LLC 协议解析 | 是否按 259B 原副边协议解析 PFC 帧。 |
 | LLC 数据映射 | PFC 数据是否写入 CAN 上报结构。 |
 | CAN 上位机解析 | 上位机是否按正确命令/字段刷新 PFC 表格。 |
+
+2026-07-19 已完成的针对性修改：
+
+- 修改文件：`5.原副边程序/D版本_TAE32G5800D/259B_A4/LLC_1.259B_LLC_A4_V_1_2_0/APP/source/pri_sec_commun_app.c`
+- 原逻辑：`LL_UART_Receive_IT(PFC_COMM_UART, pfc_comm_rx_buf, PFC_COMM_FRAME_TOTAL_SIZE)` 收满一整帧后直接解析。
+- 新逻辑：`LL_UART_Receive_IT(..., &pfc_comm_rx_byte, 1)` 每次收 1 字节，通过 `0x55 / 0x02 / LEN / ... / 0xAA` 状态机自动重新同步。
+- 验证文件已导出到：`C:\Users\10412\Desktop\ZHLD_5800D_IAP_当前烧录码`
+- 先烧 `01_LLC_JLINK先烧这个_5800D_PFC_UART解析修复.bin`，或使用 `02_LLC_IAP在线升级_5800D_PFC_UART解析修复.bin` 在线升级后复测 PFC 参数。
 
 ### 3. UART 模式切换仍需实测
 
