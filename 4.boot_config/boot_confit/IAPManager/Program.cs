@@ -15,8 +15,8 @@ namespace IAPManager
 
         // 动态路径和项目信息
         private string projectPath = "";
-        private string projectName = "2xxB-LLC"; // 默认项目名称
-        private string chipType = "5800"; // 默认芯片类型
+        private string projectName = "259B-LLC"; // 默认项目名称
+        private string chipType = "5800D"; // 默认使用259B D版本
 
         private RadioButton rbOnlineMode;
         private RadioButton rbOfflineMode;
@@ -133,7 +133,7 @@ namespace IAPManager
             txtProjectName.Name = "txtProjectName";
             txtProjectName.Size = new Size(200, 23);
             txtProjectName.TabIndex = 4;
-            txtProjectName.Text = "210B-LLC";
+            txtProjectName.Text = "259B-LLC";
             txtProjectName.TextChanged += TxtProjectName_TextChanged;
             // 
             // lblChipType
@@ -148,7 +148,7 @@ namespace IAPManager
             // cmbChipType
             // 
             cmbChipType.DropDownStyle = ComboBoxStyle.DropDownList;
-            cmbChipType.Items.AddRange(new object[] { "5800", "5300" });
+            cmbChipType.Items.AddRange(new object[] { "5800D", "5800", "5300" });
             cmbChipType.Location = new Point(400, 55);
             cmbChipType.Name = "cmbChipType";
             cmbChipType.Size = new Size(80, 25);
@@ -178,6 +178,7 @@ namespace IAPManager
             cmbTarget.SelectedIndex = 0;
             cmbTarget.SelectedIndexChanged += CmbTarget_SelectedIndexChanged;
             gbProjectSettings.Controls.Add(cmbTarget);
+            cmbChipType.SelectedIndex = 0;
             // 
             // gbMode
             // 
@@ -335,8 +336,8 @@ namespace IAPManager
                 chipType = cmbChipType.SelectedItem.ToString();
                 LogMessage($"芯片类型已切换为: {chipType}");
 
-                // 5300只有LLC，禁用PFC选项
-                if (chipType == "5300")
+                // 目前只有5800D内嵌了独立的LLC/PFC Bootloader。
+                if (chipType != "5800D")
                 {
                     cmbTarget.SelectedIndex = 0; // LLC
                     cmbTarget.Enabled = false;
@@ -344,6 +345,14 @@ namespace IAPManager
                 else
                 {
                     cmbTarget.Enabled = true;
+                }
+
+                if (chipType == "5800D" &&
+                    (string.IsNullOrWhiteSpace(txtProjectName.Text) ||
+                     txtProjectName.Text == "210B-LLC" ||
+                     txtProjectName.Text == "2xxB-LLC"))
+                {
+                    txtProjectName.Text = "259B-LLC";
                 }
 
                 // 更新按钮文本以反映当前芯片类型
@@ -358,6 +367,12 @@ namespace IAPManager
             {
                 string target = cmbTarget.SelectedItem.ToString();
                 LogMessage($"升级目标已切换为: {target}");
+
+                if (chipType == "5800D" &&
+                    (txtProjectName.Text == "259B-LLC" || txtProjectName.Text == "259B-PFC"))
+                {
+                    txtProjectName.Text = target == "PFC" ? "259B-PFC" : "259B-LLC";
+                }
             }
         }
 
@@ -369,6 +384,10 @@ namespace IAPManager
             if (chipType == "5300")
             {
                 return MyData.BOOTLOADER_5300_BIN_DATA;
+            }
+            else if (chipType == "5800D")
+            {
+                return BootLoader5800DResources.GetBin(target);
             }
             else if (target == "PFC")
             {
@@ -387,6 +406,10 @@ namespace IAPManager
             if (chipType == "5300")
             {
                 return MyData.BOOTLOADER_5300_HEX_DATA;
+            }
+            else if (chipType == "5800D")
+            {
+                return BootLoader5800DResources.GetHex(target);
             }
             else if (target == "PFC")
             {
@@ -735,8 +758,9 @@ namespace IAPManager
                 var binData = GetCurrentBootLoaderBinData();
                 var hexData = GetCurrentBootLoaderHexData();
 
-                string binPath = Path.Combine(iapDir, $"BootLoader-{chipType}.bin");
-                string hexPath = Path.Combine(iapDir, $"BootLoader-{chipType}.hex");
+                string bootLoaderFileStem = GetBootLoaderFileStem();
+                string binPath = Path.Combine(iapDir, $"{bootLoaderFileStem}.bin");
+                string hexPath = Path.Combine(iapDir, $"{bootLoaderFileStem}.hex");
 
                 // 检查文件是否已存在，如果不存在或者大小不匹配则创建
                 bool needCreateBin = !File.Exists(binPath) ||
@@ -1399,8 +1423,9 @@ namespace IAPManager
                 string iapDir = Path.Combine(projectPath, $@"IAP\IapFileCreator\{projectName}");
                 Directory.CreateDirectory(iapDir);
 
-                string binPath = Path.Combine(iapDir, $"BootLoader-{chipType}.bin");
-                string hexPath = Path.Combine(iapDir, $"BootLoader-{chipType}.hex");
+                string bootLoaderFileStem = GetBootLoaderFileStem();
+                string binPath = Path.Combine(iapDir, $"{bootLoaderFileStem}.bin");
+                string hexPath = Path.Combine(iapDir, $"{bootLoaderFileStem}.hex");
 
                 File.WriteAllBytes(binPath, binData);
                 LogMessage($"已创建: {binPath} ({binData.Length} bytes)");
@@ -1676,7 +1701,7 @@ namespace IAPManager
         {
             LogMessage("正在转换为在线升级模式配置...");
 
-            if (chipType == "5800")
+            if (Is5800Chip())
             {
                 content = Regex.Replace(content,
                     @"^(\s*);?#define __ROM_BASE\s+0x08000000.*?$",
@@ -1739,7 +1764,7 @@ namespace IAPManager
         {
             LogMessage("正在转换为非在线升级模式配置...");
 
-            if (chipType == "5800")
+            if (Is5800Chip())
             {
                 content = Regex.Replace(content,
                     @"^(\s*)(?:;|/\*)?#define __ROM_BASE\s+0x08000000(?:\*/)?.*?$",
@@ -2065,9 +2090,21 @@ namespace IAPManager
                 case "5300":
                     return "tae32f53xx_ac6_flash.sct";  // 5300芯片的scatter文件名
                 case "5800":
+                case "5800D":
                 default:
                     return "tae32g58xx_ac6_flash.sct";  // 5800芯片的scatter文件名
             }
+        }
+
+        private bool Is5800Chip()
+        {
+            return chipType == "5800" || chipType == "5800D";
+        }
+
+        private string GetBootLoaderFileStem()
+        {
+            // 现有AfterBuildHandler和JSON约定使用BootLoader-5800文件名。
+            return chipType == "5300" ? "BootLoader-5300" : "BootLoader-5800";
         }
     }
 

@@ -37,6 +37,10 @@
 		<Content Include="zhld.ico">
 			<CopyToOutputDirectory>Never</CopyToOutputDirectory>
 		</Content>
+		<EmbeddedResource Include="Resources\BootLoader-259B-LLC-D.bin" LogicalName="BootLoader5800D.LLC.bin" />
+		<EmbeddedResource Include="Resources\BootLoader-259B-LLC-D.hex" LogicalName="BootLoader5800D.LLC.hex" />
+		<EmbeddedResource Include="Resources\BootLoader-259B-PFC-D.bin" LogicalName="BootLoader5800D.PFC.bin" />
+		<EmbeddedResource Include="Resources\BootLoader-259B-PFC-D.hex" LogicalName="BootLoader5800D.PFC.hex" />
 	</ItemGroup>
 
 	<!-- NuGet包引用 -->

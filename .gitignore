@@ -2,6 +2,7 @@
 *.o
 *.obj
 *.exe
+!4.boot_config/release/ZHLD_boot_config_5800D.exe
 *.dll
 *.lib
 *.axf
