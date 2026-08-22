@@ -77,6 +77,7 @@ typedef union {
 typedef struct {
     // ===== 实时测量值 (16 bytes) =====
     float_union_t vbus_target;       ///< 目标总线电压 (V)
+    float_union_t vbus_ref;          ///< vbus reference value (V)
     float_union_t vbus_rel;          ///< 实际总线电压 (V)
     float_union_t iloop_rel;         ///< 实际环路电流 (A)
     float_union_t vin_rel;           ///< 实际输入电压 (V)

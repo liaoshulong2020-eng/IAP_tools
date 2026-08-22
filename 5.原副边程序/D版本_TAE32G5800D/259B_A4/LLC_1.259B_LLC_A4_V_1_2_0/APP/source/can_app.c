@@ -1,4 +1,4 @@
-// ºÏ²¢´¦ÀíÂß¼­µÄCAN½ÓÊÕ´úÂë
+// ï¿½Ï²ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ß¼ï¿½ï¿½ï¿½CANï¿½ï¿½ï¿½Õ´ï¿½ï¿½ï¿½
 
 #include "main.h"
 #include "can_app.h"
@@ -13,6 +13,13 @@ uint8_t dev_index ;
 
 void User_CAN_RxCpltCallback(void);
 
+static inline void split_int16(uint8_t *high, uint8_t *low, int value)
+{
+  uint16_t data = (uint16_t)value;
+  *high = (uint8_t)((data >> 8) & 0xFF);
+  *low = (uint8_t)(data & 0xFF);
+}
+
 typedef struct __CAN_UserCtrlTypeDef
 {
   CAN_TypeDef* Instance;
@@ -25,7 +32,7 @@ typedef struct __CAN_UserCtrlTypeDef
 
 CAN_UserCtrlTypeDef user_can_ctrl;
 
-// CAN¿ØÖÆÑÓÊ±º¯Êý
+// CANï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ê±ï¿½ï¿½ï¿½ï¿½
 static inline void can_ctrl_delay(void)
 {
   CAN1->CTRL |= 1<<4;
@@ -52,10 +59,10 @@ static inline void can_ctrl_delay(void)
   CAN1->CTRL &= ~(1<<4);
 }
 // =============================================================================
-// 16Î»Êý¾Ý´¦Àíº¯Êý
+// 16Î»ï¿½ï¿½ï¿½Ý´ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 // =============================================================================
 
-// 16Î»Êý¾ÝÌáÈ¡º¯Êý£¨²»´øCRC£©
+// 16Î»ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½È¡ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½CRCï¿½ï¿½
 static inline uint16_t extract_16bit_data(uint8_t start_index)
 {
   uint8_t current_rx_index = user_can_ctrl.rx_cnt;
@@ -64,69 +71,69 @@ static inline uint16_t extract_16bit_data(uint8_t start_index)
   return (high_byte << 8) | low_byte;
 }
 
-// 16Î»Êý¾Ý´¦Àíº¯Êý£¨²»´øCRC£©
+// 16Î»ï¿½ï¿½ï¿½Ý´ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½CRCï¿½ï¿½
 RAMCODE
 bool process_16bit_simple(uint8_t cmd, uint16_t* result_value)
 {
   uint8_t current_rx_index = user_can_ctrl.rx_cnt;
 
-  // ÑéÖ¤Êý¾Ý³¤¶È£¨ÖÁÉÙÐèÒª4×Ö½Ú£º±£Áô+ÃüÁî+2×Ö½ÚÊý¾Ý£©
+  // ï¿½ï¿½Ö¤ï¿½ï¿½ï¿½Ý³ï¿½ï¿½È£ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Òª4ï¿½Ö½Ú£ï¿½ï¿½ï¿½ï¿½ï¿½+ï¿½ï¿½ï¿½ï¿½+2ï¿½Ö½ï¿½ï¿½ï¿½ï¿½Ý£ï¿½
   if (user_can_ctrl.rxbuf_fmt[current_rx_index].data_len_code < 4)
     {
       return false;
     }
 
-  // ÑéÖ¤ÃüÁî
+  // ï¿½ï¿½Ö¤ï¿½ï¿½ï¿½ï¿½
   uint8_t received_cmd = user_can_ctrl.rx_buf[current_rx_index][1];
   if(received_cmd != cmd)
     {
       return false;
     }
 
-  // ÌáÈ¡16Î»Êý¾Ý
+  // ï¿½ï¿½È¡16Î»ï¿½ï¿½ï¿½ï¿½
   *result_value = extract_16bit_data(2);
   return true;
 }
 
-// 16Î»Êý¾Ý´¦Àíº¯Êý£¨´øCRC£©
+// 16Î»ï¿½ï¿½ï¿½Ý´ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½CRCï¿½ï¿½
 RAMCODE
 bool process_16bit_with_crc(uint8_t cmd, uint16_t* result_value)
 {
   uint8_t current_rx_index = user_can_ctrl.rx_cnt;
 
-  // ÑéÖ¤Êý¾Ý³¤¶È£¨ÖÁÉÙÐèÒª5×Ö½Ú£º±£Áô+ÃüÁî+2×Ö½ÚÊý¾Ý+CRC£©
+  // ï¿½ï¿½Ö¤ï¿½ï¿½ï¿½Ý³ï¿½ï¿½È£ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Òª5ï¿½Ö½Ú£ï¿½ï¿½ï¿½ï¿½ï¿½+ï¿½ï¿½ï¿½ï¿½+2ï¿½Ö½ï¿½ï¿½ï¿½ï¿½ï¿½+CRCï¿½ï¿½
   if (user_can_ctrl.rxbuf_fmt[current_rx_index].data_len_code < 5)
     {
       return false;
     }
 
-  // ÑéÖ¤ÃüÁî
+  // ï¿½ï¿½Ö¤ï¿½ï¿½ï¿½ï¿½
   uint8_t received_cmd = user_can_ctrl.rx_buf[current_rx_index][1];
   if(received_cmd != cmd)
     {
       return false;
     }
 
-  // ÌáÈ¡Êý¾ÝºÍCRC
+  // ï¿½ï¿½È¡ï¿½ï¿½ï¿½Ýºï¿½CRC
   uint8_t low_byte = user_can_ctrl.rx_buf[current_rx_index][2];
   uint8_t high_byte = user_can_ctrl.rx_buf[current_rx_index][3];
   uint8_t received_crc = user_can_ctrl.rx_buf[current_rx_index][4];
 
-  // ÑéÖ¤CRC
+  // ï¿½ï¿½Ö¤CRC
   uint8_t crc_data[3] = {received_cmd, low_byte, high_byte};
   uint8_t calculated_crc = crc8(crc_data, sizeof(crc_data));
 
   if(calculated_crc != received_crc)
     {
-      return false; // CRCÐ£ÑéÊ§°Ü
+      return false; // CRCÐ£ï¿½ï¿½Ê§ï¿½ï¿½
     }
 
-  // ×é×°Êý¾Ý
+  // ï¿½ï¿½×°ï¿½ï¿½ï¿½ï¿½
   *result_value = (high_byte << 8) | low_byte;
   return true;
 }
 
-// 16Î»Êý¾Ý·¢ËÍº¯Êý£¨²»´øCRC£©
+// 16Î»ï¿½ï¿½ï¿½Ý·ï¿½ï¿½Íºï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½CRCï¿½ï¿½
 RAMCODE
 void can_send_16bit_simple(uint8_t cmd, uint16_t value)
 {
@@ -134,10 +141,10 @@ void can_send_16bit_simple(uint8_t cmd, uint16_t value)
 
   uint8_t data_bytes[4] =
   {
-    0x00,                          // ±£Áô×Ö½Ú
-    cmd,                           // ÃüÁî
-    (uint8_t)(value & 0xFF),       // µÍ×Ö½Ú
-    (uint8_t)((value >> 8) & 0xFF) // ¸ß×Ö½Ú
+    0x00,                          // ï¿½ï¿½ï¿½ï¿½ï¿½Ö½ï¿½
+    cmd,                           // ï¿½ï¿½ï¿½ï¿½
+    (uint8_t)(value & 0xFF),       // ï¿½ï¿½ï¿½Ö½ï¿½
+    (uint8_t)((value >> 8) & 0xFF) // ï¿½ï¿½ï¿½Ö½ï¿½
   };
 
   tx_buf_fmt.id_extension = 1;
@@ -148,7 +155,7 @@ void can_send_16bit_simple(uint8_t cmd, uint16_t value)
   LL_CAN_TransmitPTB_CPU(CAN1, &tx_buf_fmt, (uint32_t*)data_bytes);
 }
 
-// 16Î»Êý¾Ý·¢ËÍº¯Êý£¨´øCRC£©
+// 16Î»ï¿½ï¿½ï¿½Ý·ï¿½ï¿½Íºï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½CRCï¿½ï¿½
 RAMCODE
 void can_send_16bit_with_crc(uint8_t cmd, uint16_t value)
 {
@@ -157,16 +164,16 @@ void can_send_16bit_with_crc(uint8_t cmd, uint16_t value)
   uint8_t low_byte = (uint8_t)(value & 0xFF);
   uint8_t high_byte = (uint8_t)((value >> 8) & 0xFF);
 
-  // ¼ÆËãCRC
+  // ï¿½ï¿½ï¿½ï¿½CRC
   uint8_t crc_data[3] = {cmd, low_byte, high_byte};
   uint8_t crc = crc8(crc_data, sizeof(crc_data));
 
   uint8_t data_bytes[5] =
   {
-    0x00,      // ±£Áô×Ö½Ú
-    cmd,       // ÃüÁî
-    low_byte,  // µÍ×Ö½Ú
-    high_byte, // ¸ß×Ö½Ú
+    0x00,      // ï¿½ï¿½ï¿½ï¿½ï¿½Ö½ï¿½
+    cmd,       // ï¿½ï¿½ï¿½ï¿½
+    low_byte,  // ï¿½ï¿½ï¿½Ö½ï¿½
+    high_byte, // ï¿½ï¿½ï¿½Ö½ï¿½
     crc        // CRC
   };
 
@@ -179,17 +186,17 @@ void can_send_16bit_with_crc(uint8_t cmd, uint16_t value)
 }
 
 // =============================================================================
-// 32Î»Êý¾Ý´¦Àíº¯Êý
+// 32Î»ï¿½ï¿½ï¿½Ý´ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 // =============================================================================
 
-// 32Î»Êý¾ÝÌáÈ¡º¯Êý£¨²»´øCRC£©
+// 32Î»ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½È¡ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½CRCï¿½ï¿½
 static inline uint32_t extract_32bit_data(uint8_t start_index)
 {
   uint8_t current_rx_index = user_can_ctrl.rx_cnt;
-  uint8_t byte0 = user_can_ctrl.rx_buf[current_rx_index][start_index];     // ×îµÍ×Ö½Ú
+  uint8_t byte0 = user_can_ctrl.rx_buf[current_rx_index][start_index];     // ï¿½ï¿½ï¿½ï¿½Ö½ï¿½
   uint8_t byte1 = user_can_ctrl.rx_buf[current_rx_index][start_index + 1];
   uint8_t byte2 = user_can_ctrl.rx_buf[current_rx_index][start_index + 2];
-  uint8_t byte3 = user_can_ctrl.rx_buf[current_rx_index][start_index + 3]; // ×î¸ß×Ö½Ú
+  uint8_t byte3 = user_can_ctrl.rx_buf[current_rx_index][start_index + 3]; // ï¿½ï¿½ï¿½ï¿½Ö½ï¿½
 
   return ((uint32_t)byte3 << 24) |
          ((uint32_t)byte2 << 16) |
@@ -197,99 +204,99 @@ static inline uint32_t extract_32bit_data(uint8_t start_index)
          byte0;
 }
 
-// 32Î»Êý¾Ý´¦Àíº¯Êý£¨²»´øCRC£©
+// 32Î»ï¿½ï¿½ï¿½Ý´ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½CRCï¿½ï¿½
 RAMCODE
 bool process_32bit_simple(uint8_t cmd, uint32_t* result_value)
 {
   uint8_t current_rx_index = user_can_ctrl.rx_cnt;
 
-  // ÑéÖ¤Êý¾Ý³¤¶È£¨ÖÁÉÙÐèÒª6×Ö½Ú£º±£Áô+ÃüÁî+4×Ö½ÚÊý¾Ý£©
+  // ï¿½ï¿½Ö¤ï¿½ï¿½ï¿½Ý³ï¿½ï¿½È£ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Òª6ï¿½Ö½Ú£ï¿½ï¿½ï¿½ï¿½ï¿½+ï¿½ï¿½ï¿½ï¿½+4ï¿½Ö½ï¿½ï¿½ï¿½ï¿½Ý£ï¿½
   if (user_can_ctrl.rxbuf_fmt[current_rx_index].data_len_code < 6)
     {
       return false;
     }
 
-  // ÑéÖ¤ÃüÁî
+  // ï¿½ï¿½Ö¤ï¿½ï¿½ï¿½ï¿½
   uint8_t received_cmd = user_can_ctrl.rx_buf[current_rx_index][1];
   if(received_cmd != cmd)
     {
       return false;
     }
 
-  // ÌáÈ¡32Î»Êý¾Ý
+  // ï¿½ï¿½È¡32Î»ï¿½ï¿½ï¿½ï¿½
   *result_value = extract_32bit_data(2);
   return true;
 }
 
-// 32Î»Êý¾ÝCRC´¦Àíº¯Êý
+// 32Î»ï¿½ï¿½ï¿½ï¿½CRCï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 RAMCODE
 bool process_32bit_with_crc(uint8_t cmd, float* result_value, int scale_factor)
 {
   uint8_t current_rx_index = user_can_ctrl.rx_cnt;
 
-  // ÑéÖ¤Êý¾Ý³¤¶È£¨ÖÁÉÙÐèÒª7×Ö½Ú£º±£Áô+ÃüÁî+4×Ö½ÚÊý¾Ý+CRC£©
+  // ï¿½ï¿½Ö¤ï¿½ï¿½ï¿½Ý³ï¿½ï¿½È£ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Òª7ï¿½Ö½Ú£ï¿½ï¿½ï¿½ï¿½ï¿½+ï¿½ï¿½ï¿½ï¿½+4ï¿½Ö½ï¿½ï¿½ï¿½ï¿½ï¿½+CRCï¿½ï¿½
   if (user_can_ctrl.rxbuf_fmt[current_rx_index].data_len_code < 7)
     {
       return false;
     }
 
-  // ÌáÈ¡½ÓÊÕµ½µÄÊý¾Ý
+  // ï¿½ï¿½È¡ï¿½ï¿½ï¿½Õµï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
   uint8_t received_cmd = user_can_ctrl.rx_buf[current_rx_index][1];
-  uint8_t data_byte0 = user_can_ctrl.rx_buf[current_rx_index][2];  // ×îµÍÎ»×Ö½Ú
+  uint8_t data_byte0 = user_can_ctrl.rx_buf[current_rx_index][2];  // ï¿½ï¿½ï¿½Î»ï¿½Ö½ï¿½
   uint8_t data_byte1 = user_can_ctrl.rx_buf[current_rx_index][3];
   uint8_t data_byte2 = user_can_ctrl.rx_buf[current_rx_index][4];
-  uint8_t data_byte3 = user_can_ctrl.rx_buf[current_rx_index][5];  // ×î¸ßÎ»×Ö½Ú
+  uint8_t data_byte3 = user_can_ctrl.rx_buf[current_rx_index][5];  // ï¿½ï¿½ï¿½Î»ï¿½Ö½ï¿½
   uint8_t received_crc = user_can_ctrl.rx_buf[current_rx_index][6];
 
-  // ÑéÖ¤ÃüÁîÊÇ·ñÆ¥Åä
+  // ï¿½ï¿½Ö¤ï¿½ï¿½ï¿½ï¿½ï¿½Ç·ï¿½Æ¥ï¿½ï¿½
   if(received_cmd != cmd)
     {
       return false;
     }
 
-  // ÖØ½¨CRC¼ÆËãÊý¾Ý£¨ÃüÁî+4×Ö½ÚÊý¾Ý£©
+  // ï¿½Ø½ï¿½CRCï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ý£ï¿½ï¿½ï¿½ï¿½ï¿½+4ï¿½Ö½ï¿½ï¿½ï¿½ï¿½Ý£ï¿½
   uint8_t crc_data[5] = {received_cmd, data_byte0, data_byte1, data_byte2, data_byte3};
   uint8_t calculated_crc = crc8(crc_data, sizeof(crc_data));
 
-  // ÑéÖ¤CRC
+  // ï¿½ï¿½Ö¤CRC
   if(calculated_crc != received_crc)
     {
-      return false; // CRCÐ£ÑéÊ§°Ü
+      return false; // CRCÐ£ï¿½ï¿½Ê§ï¿½ï¿½
     }
 
-  // ÖØ×é32Î»Êý¾Ý
+  // ï¿½ï¿½ï¿½ï¿½32Î»ï¿½ï¿½ï¿½ï¿½
   uint32_t raw_value = ((uint32_t)data_byte3 << 24) |
                        ((uint32_t)data_byte2 << 16) |
                        ((uint32_t)data_byte1 << 8) |
                        data_byte0;
 
-  // ×ª»»Îª¸¡µãÊý
+  // ×ªï¿½ï¿½Îªï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
   float float_value = (float)raw_value / (float)scale_factor;
 
-//  // ·¶Î§¼ì²é£¨KP/KIÍ¨³£ÔÚ0-100000·¶Î§ÄÚ£©
+//  // ï¿½ï¿½Î§ï¿½ï¿½é£¨KP/KIÍ¨ï¿½ï¿½ï¿½ï¿½0-100000ï¿½ï¿½Î§ï¿½Ú£ï¿½
 //  if(float_value < 0.0f || float_value > 100000.0f)
 //    {
-//      return false; // ÊýÖµ³¬³ö·¶Î§
+//      return false; // ï¿½ï¿½Öµï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Î§
 //    }
 
-  // Êä³ö½á¹û
+  // ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
   *result_value = float_value;
   return true;
 }
 
-// 32Î»Êý¾Ý´¦Àíº¯Êý£¨´øCRC£¬·µ»ØÔ­Ê¼Êý¾Ý£©
+// 32Î»ï¿½ï¿½ï¿½Ý´ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½CRCï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ô­Ê¼ï¿½ï¿½ï¿½Ý£ï¿½
 RAMCODE
 bool process_32bit_with_crc_raw(uint8_t cmd, uint32_t* result_value)
 {
   uint8_t current_rx_index = user_can_ctrl.rx_cnt;
 
-  // ÑéÖ¤Êý¾Ý³¤¶È£¨ÖÁÉÙÐèÒª7×Ö½Ú£º±£Áô+ÃüÁî+4×Ö½ÚÊý¾Ý+CRC£©
+  // ï¿½ï¿½Ö¤ï¿½ï¿½ï¿½Ý³ï¿½ï¿½È£ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Òª7ï¿½Ö½Ú£ï¿½ï¿½ï¿½ï¿½ï¿½+ï¿½ï¿½ï¿½ï¿½+4ï¿½Ö½ï¿½ï¿½ï¿½ï¿½ï¿½+CRCï¿½ï¿½
   if (user_can_ctrl.rxbuf_fmt[current_rx_index].data_len_code < 7)
     {
       return false;
     }
 
-  // ÌáÈ¡½ÓÊÕµ½µÄÊý¾Ý
+  // ï¿½ï¿½È¡ï¿½ï¿½ï¿½Õµï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
   uint8_t received_cmd = user_can_ctrl.rx_buf[current_rx_index][1];
   uint8_t data_byte0 = user_can_ctrl.rx_buf[current_rx_index][2];
   uint8_t data_byte1 = user_can_ctrl.rx_buf[current_rx_index][3];
@@ -297,13 +304,13 @@ bool process_32bit_with_crc_raw(uint8_t cmd, uint32_t* result_value)
   uint8_t data_byte3 = user_can_ctrl.rx_buf[current_rx_index][5];
   uint8_t received_crc = user_can_ctrl.rx_buf[current_rx_index][6];
 
-  // ÑéÖ¤ÃüÁî
+  // ï¿½ï¿½Ö¤ï¿½ï¿½ï¿½ï¿½
   if(received_cmd != cmd)
     {
       return false;
     }
 
-  // ÑéÖ¤CRC
+  // ï¿½ï¿½Ö¤CRC
   uint8_t crc_data[5] = {received_cmd, data_byte0, data_byte1, data_byte2, data_byte3};
   uint8_t calculated_crc = crc8(crc_data, sizeof(crc_data));
 
@@ -312,7 +319,7 @@ bool process_32bit_with_crc_raw(uint8_t cmd, uint32_t* result_value)
       return false;
     }
 
-  // ÖØ×é32Î»Êý¾Ý
+  // ï¿½ï¿½ï¿½ï¿½32Î»ï¿½ï¿½ï¿½ï¿½
   *result_value = ((uint32_t)data_byte3 << 24) |
                   ((uint32_t)data_byte2 << 16) |
                   ((uint32_t)data_byte1 << 8) |
@@ -321,7 +328,7 @@ bool process_32bit_with_crc_raw(uint8_t cmd, uint32_t* result_value)
   return true;
 }
 
-// 32Î»Êý¾Ý·¢ËÍº¯Êý£¨²»´øCRC£©
+// 32Î»ï¿½ï¿½ï¿½Ý·ï¿½ï¿½Íºï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½CRCï¿½ï¿½
 RAMCODE
 void can_send_32bit_simple(uint8_t cmd, uint32_t value)
 {
@@ -329,12 +336,12 @@ void can_send_32bit_simple(uint8_t cmd, uint32_t value)
 
   uint8_t data_bytes[6] =
   {
-    0x00,                             // ±£Áô×Ö½Ú
-    cmd,                              // ÃüÁî
-    (uint8_t)(value & 0xFF),          // byte0 (×îµÍ×Ö½Ú)
+    0x00,                             // ï¿½ï¿½ï¿½ï¿½ï¿½Ö½ï¿½
+    cmd,                              // ï¿½ï¿½ï¿½ï¿½
+    (uint8_t)(value & 0xFF),          // byte0 (ï¿½ï¿½ï¿½ï¿½Ö½ï¿½)
     (uint8_t)((value >> 8) & 0xFF),   // byte1
     (uint8_t)((value >> 16) & 0xFF),  // byte2
-    (uint8_t)((value >> 24) & 0xFF)   // byte3 (×î¸ß×Ö½Ú)
+    (uint8_t)((value >> 24) & 0xFF)   // byte3 (ï¿½ï¿½ï¿½ï¿½Ö½ï¿½)
   };
 
   tx_buf_fmt.id_extension = 1;
@@ -345,7 +352,7 @@ void can_send_32bit_simple(uint8_t cmd, uint32_t value)
   LL_CAN_TransmitPTB_CPU(CAN1, &tx_buf_fmt, (uint32_t*)data_bytes);
 }
 
-// 32Î»Êý¾Ý·¢ËÍº¯Êý£¨´øCRC£©
+// 32Î»ï¿½ï¿½ï¿½Ý·ï¿½ï¿½Íºï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½CRCï¿½ï¿½
 RAMCODE
 void can_send_32bit_with_crc(uint8_t cmd, uint32_t value)
 {
@@ -356,18 +363,18 @@ void can_send_32bit_with_crc(uint8_t cmd, uint32_t value)
   uint8_t byte2 = (uint8_t)((value >> 16) & 0xFF);
   uint8_t byte3 = (uint8_t)((value >> 24) & 0xFF);
 
-  // ¼ÆËãCRC
+  // ï¿½ï¿½ï¿½ï¿½CRC
   uint8_t crc_data[5] = {cmd, byte0, byte1, byte2, byte3};
   uint8_t crc = crc8(crc_data, sizeof(crc_data));
 
   uint8_t data_bytes[7] =
   {
-    0x00,   // ±£Áô×Ö½Ú
-    cmd,    // ÃüÁî
-    byte0,  // ×îµÍ×Ö½Ú
+    0x00,   // ï¿½ï¿½ï¿½ï¿½ï¿½Ö½ï¿½
+    cmd,    // ï¿½ï¿½ï¿½ï¿½
+    byte0,  // ï¿½ï¿½ï¿½ï¿½Ö½ï¿½
     byte1,
     byte2,
-    byte3,  // ×î¸ß×Ö½Ú
+    byte3,  // ï¿½ï¿½ï¿½ï¿½Ö½ï¿½
     crc     // CRC
   };
 
@@ -379,7 +386,7 @@ void can_send_32bit_with_crc(uint8_t cmd, uint32_t value)
   LL_CAN_TransmitPTB_CPU(CAN1, &tx_buf_fmt, (uint32_t*)data_bytes);
 }
 
-// 32Î»¸¡µãÊý·¢ËÍº¯Êý£¨´øCRCºÍËõ·Å£©
+// 32Î»ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Íºï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½CRCï¿½ï¿½ï¿½ï¿½ï¿½Å£ï¿½
 RAMCODE
 void can_send_32bit_float_with_crc(uint8_t cmd, float value, int scale_factor)
 {
@@ -436,7 +443,7 @@ void process_common_commands(uint8_t can_cmd, uint32_t received_id)
             llc.temp_recover_mode = user_data.temp_recover_mode;
             break;
 
-        case CMD_OVERTEMP_POINT:  // ¹ýÎÂµã£¨16Î»£¬²»´øCRC£©
+        case CMD_OVERTEMP_POINT:  // ï¿½ï¿½ï¿½Âµã£¨16Î»ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½CRCï¿½ï¿½
         {
             uint16_t rx_data_16;
             if(process_16bit_simple(CMD_OVERTEMP_POINT, &rx_data_16)) {
@@ -446,7 +453,7 @@ void process_common_commands(uint8_t can_cmd, uint32_t received_id)
         }
         break;
 
-        case CMD_OVERTEMP_REC_POINT:  // ¹ýÎÂ»Ö¸´µã£¨16Î»£¬´øCRC£©
+        case CMD_OVERTEMP_REC_POINT:  // ï¿½ï¿½ï¿½Â»Ö¸ï¿½ï¿½ã£¨16Î»ï¿½ï¿½ï¿½ï¿½CRCï¿½ï¿½
         {
             uint16_t rx_data_16;
             if(process_16bit_with_crc(CMD_OVERTEMP_REC_POINT, &rx_data_16)) {
@@ -456,7 +463,7 @@ void process_common_commands(uint8_t can_cmd, uint32_t received_id)
         }
         break;
 
-        case CMD_FACTOR_VOLTAGE:  // Ð£×¼µçÑ¹£¨16Î»£¬²»´øCRC£©
+        case CMD_FACTOR_VOLTAGE:  // Ð£×¼ï¿½ï¿½Ñ¹ï¿½ï¿½16Î»ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½CRCï¿½ï¿½
         {
             uint16_t rx_data_16;
             if(process_16bit_simple(CMD_FACTOR_VOLTAGE, &rx_data_16)) {
@@ -465,7 +472,7 @@ void process_common_commands(uint8_t can_cmd, uint32_t received_id)
         }
         break;
 
-        case CMD_THEOR_VOLTAGE:  // ÀíÂÛµçÑ¹£¨16Î»£¬²»´øCRC£©
+        case CMD_THEOR_VOLTAGE:  // ï¿½ï¿½ï¿½Ûµï¿½Ñ¹ï¿½ï¿½16Î»ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½CRCï¿½ï¿½
         {
             uint16_t rx_data_16;
             if(process_16bit_simple(CMD_THEOR_VOLTAGE, &rx_data_16)) {
@@ -503,29 +510,29 @@ void process_common_commands(uint8_t can_cmd, uint32_t received_id)
 
 						if(llc.crc_data == llc.voltage_crc)
 						{
-								float factor_voltage_float = llc.factor_voltage / 1000.0f; // µ±Ç°²ÉÑù/ÉÏÎ»»úÏÔÊ¾Öµ
-								float theor_voltage_float  = llc.theor_voltage  / 1000.0f; // ÍòÓÃ±íÕæÊµÖµ
+								float factor_voltage_float = llc.factor_voltage / 1000.0f; // ï¿½ï¿½Ç°ï¿½ï¿½ï¿½ï¿½/ï¿½ï¿½Î»ï¿½ï¿½ï¿½ï¿½Ê¾Öµ
+								float theor_voltage_float  = llc.theor_voltage  / 1000.0f; // ï¿½ï¿½ï¿½Ã±ï¿½ï¿½ï¿½ÊµÖµ
 
 								if((factor_voltage_float > 1.0f) && (theor_voltage_float > 1.0f))
 								{
 										/*
-										 * ¿ØÖÆÄ¿±êÐ£×¼£º
-										 * ÀýÈçµ±Ç°Ä¿±ê48.19V£¬Êµ¼ÊÓ¦Îª48.00V
-										 * ÐÂÄ¿±ê = Ô­Ä¿±ê / µ±Ç°ÏÔÊ¾Öµ * ÕæÊµÖµ
+										 * ï¿½ï¿½ï¿½ï¿½Ä¿ï¿½ï¿½Ð£×¼ï¿½ï¿½
+										 * ï¿½ï¿½ï¿½çµ±Ç°Ä¿ï¿½ï¿½48.19Vï¿½ï¿½Êµï¿½ï¿½Ó¦Îª48.00V
+										 * ï¿½ï¿½Ä¿ï¿½ï¿½ = Ô­Ä¿ï¿½ï¿½ / ï¿½ï¿½Ç°ï¿½ï¿½Ê¾Öµ * ï¿½ï¿½ÊµÖµ
 										 */
 										user_data.coef_target = 
 												(llc.vbus_target / factor_voltage_float) * theor_voltage_float;
 
 										/*
-										 * ÏÔÊ¾²¹³¥£º
-										 * ÉÏÎ»»úÏÔÊ¾Öµ = llc.vbus_rel - llc.can_com_voltag_delta
-										 * ÀýÈç 48.19 - 0.19 = 48.00
+										 * ï¿½ï¿½Ê¾ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
+										 * ï¿½ï¿½Î»ï¿½ï¿½ï¿½ï¿½Ê¾Öµ = llc.vbus_rel - llc.can_com_voltag_delta
+										 * ï¿½ï¿½ï¿½ï¿½ 48.19 - 0.19 = 48.00
 										 */
 										user_data.vout_can_delta = 
 												factor_voltage_float - theor_voltage_float;
 
 										/*
-										 * Ä¿±êµçÑ¹Ïà¶Ô48VµÄÆ«ÒÆÁ¿
+										 * Ä¿ï¿½ï¿½ï¿½Ñ¹ï¿½ï¿½ï¿½48Vï¿½ï¿½Æ«ï¿½ï¿½ï¿½ï¿½
 										 */
 										user_data.vout_trim_delta = 
 												user_data.coef_target - 48.0f;
@@ -561,7 +568,7 @@ void process_common_commands(uint8_t can_cmd, uint32_t received_id)
 //				}
 //				break;
 
-        case CMD_KP:  // KP²ÎÊý£¨32Î»£¬´øCRC£¬¸¡µã£©
+        case CMD_KP:  // KPï¿½ï¿½ï¿½ï¿½ï¿½ï¿½32Î»ï¿½ï¿½ï¿½ï¿½CRCï¿½ï¿½ï¿½ï¿½ï¿½ã£©
         {
             float float_value;
 //					if(llc.para_scale_factor_is_ok)
@@ -575,7 +582,7 @@ void process_common_commands(uint8_t can_cmd, uint32_t received_id)
         }
         break;
 
-        case CMD_KI:  // KI²ÎÊý£¨32Î»£¬´øCRC£¬¸¡µã£©
+        case CMD_KI:  // KIï¿½ï¿½ï¿½ï¿½ï¿½ï¿½32Î»ï¿½ï¿½ï¿½ï¿½CRCï¿½ï¿½ï¿½ï¿½ï¿½ã£©
         {
             float float_value;
 //					if(llc.para_scale_factor_is_ok)
@@ -589,7 +596,7 @@ void process_common_commands(uint8_t can_cmd, uint32_t received_id)
         }
         break;
 
-        case CMD_TEST:  // ²âÊÔ²ÎÊý£¨32Î»£¬´øCRC£©
+        case CMD_TEST:  // ï¿½ï¿½ï¿½Ô²ï¿½ï¿½ï¿½ï¿½ï¿½32Î»ï¿½ï¿½ï¿½ï¿½CRCï¿½ï¿½
         {
             float rx_data_32;
 //					if(llc.para_scale_factor_is_ok)
@@ -604,7 +611,7 @@ void process_common_commands(uint8_t can_cmd, uint32_t received_id)
         }
         break;
 
-        case CMD_TEST2:  // ²âÊÔ²ÎÊý2£¨32Î»£¬´øCRC£©
+        case CMD_TEST2:  // ï¿½ï¿½ï¿½Ô²ï¿½ï¿½ï¿½2ï¿½ï¿½32Î»ï¿½ï¿½ï¿½ï¿½CRCï¿½ï¿½
         {
             float rx_data_32;
 //					if(llc.para_scale_factor_is_ok)
@@ -617,8 +624,175 @@ void process_common_commands(uint8_t can_cmd, uint32_t received_id)
         }
         break;
 
+        case CMD_LLC_TEMP_PROTECT:
+        {
+            can_ctrl_delay();
+            llc.user_can.llc.llc_temp_point.frame_count = user_can_ctrl.rx_buf[user_can_ctrl.rx_cnt][0];
+            int over_temp = (int)llc.protection_point.over_temp_point;
+            int over_temp_rec = (int)llc.protection_point.over_temp_rec_point;
+            split_int16(&llc.user_can.llc.llc_temp_point.llc_over_temp_high_bit,
+                        &llc.user_can.llc.llc_temp_point.llc_over_temp_low_bit,
+                        over_temp);
+            split_int16(&llc.user_can.llc.llc_temp_point.llc_over_temp_rec_high_bit,
+                        &llc.user_can.llc.llc_temp_point.llc_over_temp_rec_low_bit,
+                        over_temp_rec);
+            can_send_data((void*)&llc.user_can.llc.llc_temp_point, sizeof(llc.user_can.llc.llc_temp_point));
+        }
+        break;
+
+        case CMD_LLC_VOLTAGE_PROTECT:
+        {
+            can_ctrl_delay();
+            llc.user_can.llc.llc_voltage_protection_point.frame_count = user_can_ctrl.rx_buf[user_can_ctrl.rx_cnt][0];
+
+            int uvp_voltage = (int)(llc.protection_point.under_voltage_point * 1000.0f);
+            int ovp_voltage = (int)(llc.protection_point.over_voltage_point * 1000.0f);
+            int dac_ovp_voltage = (int)(VOUT_OVER_VOLTAGE_DAC * 1000.0f);
+
+            split_int16(&llc.user_can.llc.llc_voltage_protection_point.llc_out_ovp_soft_high_bit,
+                        &llc.user_can.llc.llc_voltage_protection_point.llc_out_ovp_soft_low_bit,
+                        ovp_voltage);
+            split_int16(&llc.user_can.llc.llc_voltage_protection_point.llc_out_ovp_dac_high_bit,
+                        &llc.user_can.llc.llc_voltage_protection_point.llc_out_ovp_dac_low_bit,
+                        dac_ovp_voltage);
+            split_int16(&llc.user_can.llc.llc_voltage_protection_point.llc_out_uvp_high_bit,
+                        &llc.user_can.llc.llc_voltage_protection_point.llc_out_uvp_low_bit,
+                        uvp_voltage);
+
+            can_send_data((void*)&llc.user_can.llc.llc_voltage_protection_point, sizeof(llc.user_can.llc.llc_voltage_protection_point));
+        }
+        break;
+
+        case CMD_LLC_OCP_PROTECT:
+        {
+            can_ctrl_delay();
+            llc.user_can.llc.llc_over_current_point.frame_count = user_can_ctrl.rx_buf[user_can_ctrl.rx_cnt][0];
+
+            int ocp_soft_point = (int)(llc.protection_point.over_current_point * 10.0f);
+            int ocp_rec_soft_point = (int)(IOUT_REC_CURRENT * 10.0f);
+            int iout_target_point = (int)(IOUT_TARGET_CURRENT * 10.0f);
+
+            split_int16(&llc.user_can.llc.llc_over_current_point.llc_iout_target_high_bit,
+                        &llc.user_can.llc.llc_over_current_point.llc_iout_target_low_bit,
+                        iout_target_point);
+            split_int16(&llc.user_can.llc.llc_over_current_point.llc_ocp_soft_high_bit,
+                        &llc.user_can.llc.llc_over_current_point.llc_ocp_soft_low_bit,
+                        ocp_soft_point);
+            split_int16(&llc.user_can.llc.llc_over_current_point.llc_ocp_rec_soft_high_bit,
+                        &llc.user_can.llc.llc_over_current_point.llc_ocp_rec_soft_low_bit,
+                        ocp_rec_soft_point);
+
+            can_send_data((void*)&llc.user_can.llc.llc_over_current_point, sizeof(llc.user_can.llc.llc_over_current_point));
+        }
+        break;
+
+        case CMD_LLC_OSP_PROTECT:
+        {
+            can_ctrl_delay();
+            llc.user_can.llc.llc_short_current_point.frame_count = user_can_ctrl.rx_buf[user_can_ctrl.rx_cnt][0];
+
+            int osp_soft_point = (int)(IOUT_SHORT_CURRENT * 10.0f);
+            int osp_hard_point = (int)(IOUT_OCP_CURRENT_DAC * 10.0f);
+
+            split_int16(&llc.user_can.llc.llc_short_current_point.llc_short_soft_high_bit,
+                        &llc.user_can.llc.llc_short_current_point.llc_short_soft_low_bit,
+                        osp_soft_point);
+            split_int16(&llc.user_can.llc.llc_short_current_point.llc_short_hard_high_bit,
+                        &llc.user_can.llc.llc_short_current_point.llc_short_hard_low_bit,
+                        osp_hard_point);
+
+            can_send_data((void*)&llc.user_can.llc.llc_short_current_point, sizeof(llc.user_can.llc.llc_short_current_point));
+        }
+        break;
+
+        case CMD_LLC_OUT_PARA:
+        {
+            can_ctrl_delay();
+            llc.user_can.llc.llc_voltage_output_para.frame_count = user_can_ctrl.rx_buf[user_can_ctrl.rx_cnt][0];
+
+            int llc_vbus_target = (int)(llc.vbus_target * 1000.0f);
+            int llc_vbus_ref = (int)(llc.vbus_ref * 1000.0f);
+            int llc_coef_target = (int)(llc.coef_target * 1000.0f);
+
+            split_int16(&llc.user_can.llc.llc_voltage_output_para.llc_vbus_target_high_bit,
+                        &llc.user_can.llc.llc_voltage_output_para.llc_vbus_target_low_bit,
+                        llc_vbus_target);
+            split_int16(&llc.user_can.llc.llc_voltage_output_para.llc_coef_target_high_bit,
+                        &llc.user_can.llc.llc_voltage_output_para.llc_coef_target_low_bit,
+                        llc_coef_target);
+            split_int16(&llc.user_can.llc.llc_voltage_output_para.llc_vbus_ref_high_bit,
+                        &llc.user_can.llc.llc_voltage_output_para.llc_vbus_ref_low_bit,
+                        llc_vbus_ref);
+
+            can_send_data((void*)&llc.user_can.llc.llc_voltage_output_para, sizeof(llc.user_can.llc.llc_voltage_output_para));
+        }
+        break;
+
+        case CMD_PFC_INPUT_OVP:
+        {
+            can_ctrl_delay();
+            llc.user_can.pfc.protect.in_ovp.frame_count = user_can_ctrl.rx_buf[user_can_ctrl.rx_cnt][0];
+            can_send_data((void*)&llc.user_can.pfc.protect.in_ovp, sizeof(llc.user_can.pfc.protect.in_ovp));
+        }
+        break;
+
+        case CMD_PFC_INPUT_UVP:
+        {
+            can_ctrl_delay();
+            llc.user_can.pfc.protect.in_uvp.frame_count = user_can_ctrl.rx_buf[user_can_ctrl.rx_cnt][0];
+            can_send_data((void*)&llc.user_can.pfc.protect.in_uvp, sizeof(llc.user_can.pfc.protect.in_uvp));
+        }
+        break;
+
+        case CMD_PFC_OUTPUT_OVP:
+        {
+            can_ctrl_delay();
+            llc.user_can.pfc.protect.out_ovp.frame_count = user_can_ctrl.rx_buf[user_can_ctrl.rx_cnt][0];
+            can_send_data((void*)&llc.user_can.pfc.protect.out_ovp, sizeof(llc.user_can.pfc.protect.out_ovp));
+        }
+        break;
+
+        case CMD_PFC_OUTPUT_UVP:
+        {
+            can_ctrl_delay();
+            llc.user_can.pfc.protect.out_uvp.frame_count = user_can_ctrl.rx_buf[user_can_ctrl.rx_cnt][0];
+            can_send_data((void*)&llc.user_can.pfc.protect.out_uvp, sizeof(llc.user_can.pfc.protect.out_uvp));
+        }
+        break;
+
+        case CMD_PFC_INPUT_OCP:
+        {
+            can_ctrl_delay();
+            llc.user_can.pfc.protect.in_ocp.frame_count = user_can_ctrl.rx_buf[user_can_ctrl.rx_cnt][0];
+            can_send_data((void*)&llc.user_can.pfc.protect.in_ocp, sizeof(llc.user_can.pfc.protect.in_ocp));
+        }
+        break;
+
+        case CMD_PFC_DATA:
+        {
+            can_ctrl_delay();
+            llc.user_can.pfc.data.vbus.frame_count = user_can_ctrl.rx_buf[user_can_ctrl.rx_cnt][0];
+            can_send_data((void*)&llc.user_can.pfc.data.vbus, sizeof(llc.user_can.pfc.data.vbus));
+        }
+        break;
+
+        case CMD_PFC_DATA_LIVE1:
+        {
+            can_ctrl_delay();
+            llc.user_can.pfc.live1.frame_count = user_can_ctrl.rx_buf[user_can_ctrl.rx_cnt][0];
+            can_send_data((void*)&llc.user_can.pfc.live1, sizeof(llc.user_can.pfc.live1));
+        }
+        break;
+
+        case CMD_PFC_DATA_LIVE2:
+        {
+            can_ctrl_delay();
+            llc.user_can.pfc.live2.frame_count = user_can_ctrl.rx_buf[user_can_ctrl.rx_cnt][0];
+            can_send_data((void*)&llc.user_can.pfc.live2, sizeof(llc.user_can.pfc.live2));
+        }
+        break;
         default:
-            // Î´ÖªÃüÁî£¬¿ÉÒÔÌí¼ÓÈÕÖ¾¼ÇÂ¼
+            // Î´Öªï¿½ï¿½ï¿½î£¬ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ö¾ï¿½ï¿½Â¼
             break;
     }
 }
@@ -673,14 +847,14 @@ void can_init_app(void)
   user_can_ctrl.txbuf_fmt.id_extension = 1;
   user_can_ctrl.txbuf_fmt.id = __LL_CAN_FrameIDFormat_29Bits(USER_CAN_STD_FRM_ID);
 
-  // ÅäÖÃ½ÓÊÕ»º³åÇø¸ñÊ½
+  // ï¿½ï¿½ï¿½Ã½ï¿½ï¿½Õ»ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ê½
   for(int i = 0; i < USER_CAN_RX_FRM_NUMS; i++)
     {
       user_can_ctrl.rxbuf_fmt[i].id_extension = 1;
       user_can_ctrl.rxbuf_fmt[i].data_len_code = 8;
     }
 
-  // ¼¤»îCAN½ÓÊÕÖÐ¶Ï
+  // ï¿½ï¿½ï¿½ï¿½CANï¿½ï¿½ï¿½ï¿½ï¿½Ð¶ï¿½
   LL_CAN_Receive_IT(user_can_ctrl.Instance, &user_can_ctrl.rxbuf_fmt[0], user_can_ctrl.rx_buf[0]);
   for(int i = 0; i < 8; i++)
     {
@@ -801,6 +975,21 @@ void can_send_data_init(void)
   hld_can_data.version_info.day = HLD_DAY_NUM;
   hld_can_data.version_info.version_low_bit = HLD_VERSION_CODE & 0xFF;
   hld_can_data.version_info.version_high_bit = (HLD_VERSION_CODE >> 8) & 0xFF;
+
+  llc.user_can.llc.llc_voltage_protection_point.return_bit = RETURN_BIT_VOLTAGE_PROTECT;
+  llc.user_can.llc.llc_over_current_point.return_bit = RETURN_BIT_OCP_PROTECT;
+  llc.user_can.llc.llc_short_current_point.return_bit = RETURN_BIT_OSP_PROTECT;
+  llc.user_can.llc.llc_voltage_output_para.return_bit = RETURN_BIT_VOLTAGE_PARA;
+  llc.user_can.llc.llc_temp_point.return_bit = RETURN_BIT_TEMP_PROTECT;
+
+  llc.user_can.pfc.protect.in_ovp.return_bit = RETURN_BIT_PFC_INPUT_OVP;
+  llc.user_can.pfc.protect.in_uvp.return_bit = RETURN_BIT_PFC_INPUT_UVP;
+  llc.user_can.pfc.protect.out_ovp.return_bit = RETURN_BIT_PFC_OUTPUT_OVP;
+  llc.user_can.pfc.protect.out_uvp.return_bit = RETURN_BIT_PFC_OUTPUT_UVP;
+  llc.user_can.pfc.protect.in_ocp.return_bit = RETURN_BIT_PFC_INPUT_OCP;
+  llc.user_can.pfc.data.vbus.return_bit = RETURN_BIT_PFC_DATA;
+  llc.user_can.pfc.live1.return_bit = RETURN_BIT_PFC_LIVE1;
+  llc.user_can.pfc.live2.return_bit = RETURN_BIT_PFC_LIVE2;
 }
 
 RAMCODE
@@ -831,12 +1020,12 @@ void LL_CAN_RxCallback(CAN_TypeDef* Instance)
                 break;
 
             case 0xB0000:
-                // HLDÉè±¸´¦Àí
+                // HLDï¿½è±¸ï¿½ï¿½ï¿½ï¿½
                 process_common_commands(can_cmd, received_id);
                 break;
 
             case IAP_CAN_ID:
-                // IAP´¦Àí
+                // IAPï¿½ï¿½ï¿½ï¿½
                 if((user_can_ctrl.rx_buf[user_can_ctrl.rx_cnt][0] == 2 ||  // LLC: 2, PFC: 1
                     user_can_ctrl.rx_buf[user_can_ctrl.rx_cnt][0] == 1) &&
                    user_can_ctrl.rx_buf[user_can_ctrl.rx_cnt][1] == 0x41) {
@@ -845,26 +1034,69 @@ void LL_CAN_RxCallback(CAN_TypeDef* Instance)
                 break;
 
             default:
-                // ¼ì²éÊÇ·ñÎªLLCÉè±¸·¶Î§µÄID£¨0xA0000-0xA0007£©
+                // ï¿½ï¿½ï¿½ï¿½Ç·ï¿½ÎªLLCï¿½è±¸ï¿½ï¿½Î§ï¿½ï¿½IDï¿½ï¿½0xA0000-0xA0007ï¿½ï¿½
                 if(received_id == llc.can_addr) {
                     process_common_commands(can_cmd, received_id);
                 }
                 break;
         }
 
-        // ¸üÐÂ½ÓÊÕ¼ÆÊýÆ÷
+        // ï¿½ï¿½ï¿½Â½ï¿½ï¿½Õ¼ï¿½ï¿½ï¿½ï¿½ï¿½
         user_can_ctrl.rx_cnt++;
         if(user_can_ctrl.rx_cnt >= USER_CAN_RX_FRM_NUMS) {
             user_can_ctrl.rx_cnt = 0;
         }
 
-        // ¼ÌÐøÉèÖÃCAN½ÓÊÕÖÐ¶Ï
+        // ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½CANï¿½ï¿½ï¿½ï¿½ï¿½Ð¶ï¿½
         LL_CAN_Receive_IT(user_can_ctrl.Instance, 
                          &user_can_ctrl.rxbuf_fmt[user_can_ctrl.rx_cnt], 
                          user_can_ctrl.rx_buf[user_can_ctrl.rx_cnt]);
     }
 }
 
+void pfc_uart_to_llc_massage(void)
+{
+    int vin_over_v = (int)(pfc_received_data.vin_over_voltage_set.f * 10.0f);
+    int vin_max_v = (int)(pfc_received_data.vin_max_voltage_set.f * 10.0f);
+    int vin_under_v = (int)(pfc_received_data.vin_under_voltage_set.f * 10.0f);
+    int vin_on_v = (int)(pfc_received_data.vin_on_voltage_set.f * 10.0f);
+    int vout_over_v = (int)(pfc_received_data.vout_over_voltage_sw.f * 10.0f);
+    int bus_ovp_v = (int)(pfc_received_data.bus_ovp_point_hw.f * 10.0f);
+    int out_uvp_v = (int)(pfc_received_data.vin_on_voltage_set.f * 10.0f);
+    int out_uvp_rec_v = (int)(pfc_received_data.vin_under_voltage_set.f * 10.0f);
+    int ocp_soft = (int)(pfc_received_data.ipfc_ocp_current_sw.f * 10.0f);
+    int ocp_dac = (int)(pfc_received_data.pfc_i_ocp_dac_point_hw.f * 10.0f);
+    int vbus_target = (int)(pfc_received_data.vbus_target.f * 10.0f);
+    int vbus_rel = (int)(pfc_received_data.vbus_rel.f * 10.0f);
+    int vbus_ref = (int)(pfc_received_data.vbus_ref.f * 10.0f);
+    int vin_rel = (int)(pfc_received_data.vin_rel.f * 10.0f);
+    int iloop_rel = (int)(pfc_received_data.iloop_rel.f * 10.0f);
+    int16_t ntc = pfc_received_data.r_ntc_raw;
+    int duty = (int)(pfc_received_data.duty_cycle.f * 10.0f);
+    uint16_t status = pfc_received_data.status_flags.all;
+
+    split_int16(&llc.user_can.pfc.protect.in_ovp.pfc_in_ovp_vol_high_bit, &llc.user_can.pfc.protect.in_ovp.pfc_in_ovp_vol_low_bit, vin_over_v);
+    split_int16(&llc.user_can.pfc.protect.in_ovp.pfc_in_ovp_rec_vol_high_bit, &llc.user_can.pfc.protect.in_ovp.pfc_in_ovp_rec_vol_low_bit, vin_max_v);
+    split_int16(&llc.user_can.pfc.protect.in_uvp.pfc_in_uvp_vol_high_bit, &llc.user_can.pfc.protect.in_uvp.pfc_in_uvp_vol_low_bit, vin_under_v);
+    split_int16(&llc.user_can.pfc.protect.in_uvp.pfc_in_uvp_rec_vol_high_bit, &llc.user_can.pfc.protect.in_uvp.pfc_in_uvp_rec_vol_low_bit, vin_on_v);
+    split_int16(&llc.user_can.pfc.protect.out_ovp.pfc_out_ovp_vol_high_bit, &llc.user_can.pfc.protect.out_ovp.pfc_out_ovp_vol_low_bit, vout_over_v);
+    split_int16(&llc.user_can.pfc.protect.out_ovp.pfc_out_ovp_rec_vol_high_bit, &llc.user_can.pfc.protect.out_ovp.pfc_out_ovp_rec_vol_low_bit, bus_ovp_v);
+    split_int16(&llc.user_can.pfc.protect.out_uvp.pfc_out_uvp_vol_high_bit, &llc.user_can.pfc.protect.out_uvp.pfc_out_uvp_vol_low_bit, out_uvp_v);
+    split_int16(&llc.user_can.pfc.protect.out_uvp.pfc_out_uvp_rec_vol_high_bit, &llc.user_can.pfc.protect.out_uvp.pfc_out_uvp_rec_vol_low_bit, out_uvp_rec_v);
+    split_int16(&llc.user_can.pfc.protect.in_ocp.pfc_in_ocp_soft_high_bit, &llc.user_can.pfc.protect.in_ocp.pfc_in_ocp_soft_low_bit, ocp_soft);
+    split_int16(&llc.user_can.pfc.protect.in_ocp.pfc_in_ocp_dac_high_bit, &llc.user_can.pfc.protect.in_ocp.pfc_in_ocp_dac_low_bit, ocp_dac);
+    split_int16(&llc.user_can.pfc.data.vbus.pfc_vbus_target_high_bit, &llc.user_can.pfc.data.vbus.pfc_vbus_target_low_bit, vbus_target);
+    split_int16(&llc.user_can.pfc.data.vbus.pfc_vbus_ref_high_bit, &llc.user_can.pfc.data.vbus.pfc_vbus_ref_low_bit, vbus_ref);
+    split_int16(&llc.user_can.pfc.data.vbus.pfc_vbus_rel_high_bit, &llc.user_can.pfc.data.vbus.pfc_vbus_rel_low_bit, vbus_rel);
+    split_int16(&llc.user_can.pfc.live1.pfc_vin_rel_high_bit, &llc.user_can.pfc.live1.pfc_vin_rel_low_bit, vin_rel);
+    split_int16(&llc.user_can.pfc.live1.pfc_iloop_rel_high_bit, &llc.user_can.pfc.live1.pfc_iloop_rel_low_bit, iloop_rel);
+    split_int16(&llc.user_can.pfc.live1.pfc_ntc_high_bit, &llc.user_can.pfc.live1.pfc_ntc_low_bit, ntc);
+
+    llc.user_can.pfc.live2.pfc_state = pfc_received_data.state;
+    llc.user_can.pfc.live2.pfc_freq_khz = pfc_received_data.switch_frequency;
+    split_int16(&llc.user_can.pfc.live2.pfc_duty_high_bit, &llc.user_can.pfc.live2.pfc_duty_low_bit, duty);
+    split_int16(&llc.user_can.pfc.live2.pfc_status_high_bit, &llc.user_can.pfc.live2.pfc_status_low_bit, status);
+}
 void can_addr_set()
 {
   llc.can_addr_check.can1_level = (LL_GPIO_ReadPin(ADDR1_PIN_PORT, ADDR1_PIN)) ? 1 : 0;
@@ -898,7 +1130,7 @@ void can_addr_set()
       llc.can_addr = 0xA0007;
       break;
     default:
-      llc.can_addr = 0xA0000; // Ä¬ÈÏÖµ
+      llc.can_addr = 0xA0000; // Ä¬ï¿½ï¿½Öµ
       break;
     }
 	 dev_index = llc.can_addr & 0x7;

@@ -200,6 +200,10 @@ void TMR7_IRQHandler(void)
     }
 }
 
+#if(UART_FUNC)
+static uint16_t uart_poll_div = 0;
+#endif
+
 //10k
 RAMCODE
 void TMR8_IRQHandler(void)
@@ -257,7 +261,13 @@ void TMR8_IRQHandler(void)
         }
       if(llc.div_freq_1k == 9)
         {
-
+#if(UART_FUNC)
+          if(++uart_poll_div >= 1000)
+            {
+              uart_poll_div = 0;
+              uart_receive_data();
+            }
+#endif
         }
       if(llc.div_freq_1k == 10)
         {
@@ -266,6 +276,9 @@ void TMR8_IRQHandler(void)
 				
 			if(llc.div_freq_1s == 10000)
 			{
+#if(UART_FUNC)
+				uart_send_info();
+#endif
 //				can_send_data((void*)&can_share_power.share_power, sizeof(can_share_power.share_power));
 				llc.div_freq_1s  = 0;
 			}

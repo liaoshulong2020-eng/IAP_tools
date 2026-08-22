@@ -19,6 +19,7 @@ typedef struct {
 void can_init_app(void);
 void can_send_data(void* data_buf, size_t data_size);
 void can_send_data_init(void);
+void pfc_uart_to_llc_massage(void);
 void can_addr_set();
 bool process_32bit_with_crc(uint8_t cmd, float* result_value, int scale_factor);
 #define SEND_MASSAGE_ID							(0xB0000)	//?????????��ID

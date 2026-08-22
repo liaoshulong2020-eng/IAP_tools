@@ -170,8 +170,8 @@ void LL_UART_MspInit(UART_TypeDef* Instance)
 
     if(Instance == UART0)
         {
-            //UART0 Pinmux Config: PA9
-            UART_GPIO_Init.Pin = GPIO_PIN_9;
+            //UART0 Pinmux Config: PA9 TX, PA10 RX
+            UART_GPIO_Init.Pin = GPIO_PIN_9 | GPIO_PIN_10;
             UART_GPIO_Init.Alternate = GPIO_AF8_UART0;
             LL_GPIO_Init(GPIOA, &UART_GPIO_Init);
 
@@ -180,6 +180,7 @@ void LL_UART_MspInit(UART_TypeDef* Instance)
 
             //NVIC UART0 Interrupt Enable
             LL_NVIC_EnableIRQ(UART0_IRQn);
+            LL_NVIC_SetPriority(UART0_IRQn, 4, 0);
         }
 				else if(Instance == UART2)
         {

@@ -283,9 +283,24 @@ typedef enum
 	
     CMD_KP = 0x28,              // ����KP
     CMD_KI = 0x29,              // ����KI
+
+    CMD_PFC_INPUT_OVP = 0x30,
+    CMD_PFC_INPUT_UVP = 0x31,
+    CMD_PFC_OUTPUT_OVP = 0x32,
+    CMD_PFC_OUTPUT_UVP = 0x33,
+    CMD_PFC_INPUT_OCP = 0x34,
+    CMD_PFC_DATA = 0x35,
+    CMD_PFC_DATA_LIVE1 = 0x36,
+    CMD_PFC_DATA_LIVE2 = 0x37,
+
+    CMD_LLC_TEMP_PROTECT = 0x3E,
+    CMD_LLC_VOLTAGE_PROTECT = 0x3F,
+    CMD_LLC_OCP_PROTECT = 0x40,
+    CMD_LLC_OSP_PROTECT = 0x41,
     
     CMD_TEST = 0x42,            // ��������
     CMD_TEST2 = 0x43,           // ��������2
+    CMD_LLC_OUT_PARA = 0x44,
 
     CMD_IAP = 0x50,             // IAP����
 } CommandType;
@@ -328,6 +343,21 @@ typedef enum
 #define 	HLD_PATCH_VERSION					22
 #define   HLD_VERSION_CODE 					(100 * HLD_MAJOR_VERSION + 10 * HLD_MINOR_VERSION + HLD_PATCH_VERSION)	////byte6_low //byte7_high
 
+#define RETURN_BIT_VOLTAGE_PROTECT 0x83
+#define RETURN_BIT_OCP_PROTECT 0x84
+#define RETURN_BIT_OSP_PROTECT 0x85
+#define RETURN_BIT_VOLTAGE_PARA 0x86
+#define RETURN_BIT_TEMP_PROTECT 0xBE
+
+#define RETURN_BIT_PFC_INPUT_OVP  0x87
+#define RETURN_BIT_PFC_INPUT_UVP  0x88
+#define RETURN_BIT_PFC_OUTPUT_OVP 0x89
+#define RETURN_BIT_PFC_OUTPUT_UVP 0x8A
+#define RETURN_BIT_PFC_INPUT_OCP  0x8B
+#define RETURN_BIT_PFC_DATA       0x8C
+#define RETURN_BIT_PFC_LIVE1      0x8D
+#define RETURN_BIT_PFC_LIVE2      0x8E
+
 
 typedef struct {
     uint8_t Byte0; 						// ֡����
@@ -365,6 +395,149 @@ typedef struct {
     uint8_t cur_high_bit; 		// ������8λ(0.1A)
     int8_t temp_bit; 					// �¶�
 } power_upper_TypeDef;
+
+typedef struct {
+    uint8_t frame_count;
+    uint8_t return_bit;
+    uint8_t pfc_in_ovp_vol_low_bit;
+    uint8_t pfc_in_ovp_vol_high_bit;
+    uint8_t pfc_in_ovp_rec_vol_low_bit;
+    uint8_t pfc_in_ovp_rec_vol_high_bit;
+    uint8_t reserved0;
+    uint8_t reserved1;
+} pfc_input_ovp_TypeDef;
+
+typedef struct {
+    uint8_t frame_count;
+    uint8_t return_bit;
+    uint8_t pfc_in_uvp_vol_low_bit;
+    uint8_t pfc_in_uvp_vol_high_bit;
+    uint8_t pfc_in_uvp_rec_vol_low_bit;
+    uint8_t pfc_in_uvp_rec_vol_high_bit;
+    uint8_t reserved0;
+    uint8_t reserved1;
+} pfc_input_uvp_TypeDef;
+
+typedef struct {
+    uint8_t frame_count;
+    uint8_t return_bit;
+    uint8_t pfc_out_ovp_vol_low_bit;
+    uint8_t pfc_out_ovp_vol_high_bit;
+    uint8_t pfc_out_ovp_rec_vol_low_bit;
+    uint8_t pfc_out_ovp_rec_vol_high_bit;
+    uint8_t reserved0;
+    uint8_t reserved1;
+} pfc_output_ovp_TypeDef;
+
+typedef struct {
+    uint8_t frame_count;
+    uint8_t return_bit;
+    uint8_t pfc_out_uvp_vol_low_bit;
+    uint8_t pfc_out_uvp_vol_high_bit;
+    uint8_t pfc_out_uvp_rec_vol_low_bit;
+    uint8_t pfc_out_uvp_rec_vol_high_bit;
+    uint8_t reserved0;
+    uint8_t reserved1;
+} pfc_output_uvp_TypeDef;
+
+typedef struct {
+    uint8_t frame_count;
+    uint8_t return_bit;
+    uint8_t pfc_in_ocp_soft_low_bit;
+    uint8_t pfc_in_ocp_soft_high_bit;
+    uint8_t pfc_in_ocp_dac_low_bit;
+    uint8_t pfc_in_ocp_dac_high_bit;
+    uint8_t reserved0;
+    uint8_t reserved1;
+} pfc_input_ocp_TypeDef;
+
+typedef struct {
+    uint8_t frame_count;
+    uint8_t return_bit;
+    uint8_t pfc_vbus_target_low_bit;
+    uint8_t pfc_vbus_target_high_bit;
+    uint8_t pfc_vbus_ref_low_bit;
+    uint8_t pfc_vbus_ref_high_bit;
+    uint8_t pfc_vbus_rel_low_bit;
+    uint8_t pfc_vbus_rel_high_bit;
+} pfc_vbus_voltage_TypeDef;
+
+typedef struct {
+    uint8_t frame_count;
+    uint8_t return_bit;
+    uint8_t pfc_vin_rel_low_bit;
+    uint8_t pfc_vin_rel_high_bit;
+    uint8_t pfc_iloop_rel_low_bit;
+    uint8_t pfc_iloop_rel_high_bit;
+    uint8_t pfc_ntc_low_bit;
+    uint8_t pfc_ntc_high_bit;
+} pfc_live1_TypeDef;
+
+typedef struct {
+    uint8_t frame_count;
+    uint8_t return_bit;
+    uint8_t pfc_state;
+    uint8_t pfc_freq_khz;
+    uint8_t pfc_duty_low_bit;
+    uint8_t pfc_duty_high_bit;
+    uint8_t pfc_status_low_bit;
+    uint8_t pfc_status_high_bit;
+} pfc_live2_TypeDef;
+
+typedef struct {
+    uint8_t frame_count;
+    uint8_t return_bit;
+    uint8_t llc_out_ovp_soft_low_bit;
+    uint8_t llc_out_ovp_soft_high_bit;
+    uint8_t llc_out_ovp_dac_low_bit;
+    uint8_t llc_out_ovp_dac_high_bit;
+    uint8_t llc_out_uvp_low_bit;
+    uint8_t llc_out_uvp_high_bit;
+} llc_out_voltage_protection_TypeDef;
+
+typedef struct {
+    uint8_t frame_count;
+    uint8_t return_bit;
+    uint8_t llc_iout_target_low_bit;
+    uint8_t llc_iout_target_high_bit;
+    uint8_t llc_ocp_soft_low_bit;
+    uint8_t llc_ocp_soft_high_bit;
+    uint8_t llc_ocp_rec_soft_low_bit;
+    uint8_t llc_ocp_rec_soft_high_bit;
+} llc_out_over_current_protection_TypeDef;
+
+typedef struct {
+    uint8_t frame_count;
+    uint8_t return_bit;
+    uint8_t llc_short_soft_low_bit;
+    uint8_t llc_short_soft_high_bit;
+    uint8_t llc_short_hard_low_bit;
+    uint8_t llc_short_hard_high_bit;
+    uint8_t reserved0;
+    uint8_t reserved1;
+} llc_out_short_current_protection_TypeDef;
+
+typedef struct {
+    uint8_t frame_count;
+    uint8_t return_bit;
+    uint8_t llc_over_temp_low_bit;
+    uint8_t llc_over_temp_high_bit;
+    uint8_t llc_over_temp_rec_low_bit;
+    uint8_t llc_over_temp_rec_high_bit;
+    uint8_t reserved0;
+    uint8_t reserved1;
+} llc_temp_protection_TypeDef;
+
+typedef struct {
+    uint8_t frame_count;
+    uint8_t return_bit;
+    uint8_t llc_vbus_target_low_bit;
+    uint8_t llc_vbus_target_high_bit;
+    uint8_t llc_coef_target_low_bit;
+    uint8_t llc_coef_target_high_bit;
+    uint8_t llc_vbus_ref_low_bit;
+    uint8_t llc_vbus_ref_high_bit;
+} llc_out_voltage_para_TypeDef;
 
 typedef struct {	
 		uint8_t frame_count; 			// ֡����
@@ -408,6 +581,34 @@ typedef struct {
 typedef struct {
 		share_power_TypeDef		share_power;
 } can_share_power_TypeDef;
+
+typedef struct { pfc_vbus_voltage_TypeDef vbus; } pfc_data_TypeDef;
+
+typedef struct {
+    pfc_input_ovp_TypeDef in_ovp;
+    pfc_input_uvp_TypeDef in_uvp;
+    pfc_output_ovp_TypeDef out_ovp;
+    pfc_output_uvp_TypeDef out_uvp;
+    pfc_input_ocp_TypeDef in_ocp;
+} pfc_protect_TypeDef;
+
+typedef struct {
+    pfc_data_TypeDef data;
+    pfc_protect_TypeDef protect;
+    pfc_live1_TypeDef live1;
+    pfc_live2_TypeDef live2;
+} can_pfc_TypeDef;
+
+typedef struct {
+    can_pfc_TypeDef pfc;
+    struct {
+        llc_out_voltage_protection_TypeDef llc_voltage_protection_point;
+        llc_out_over_current_protection_TypeDef llc_over_current_point;
+        llc_out_short_current_protection_TypeDef llc_short_current_point;
+        llc_temp_protection_TypeDef llc_temp_point;
+        llc_out_voltage_para_TypeDef llc_voltage_output_para;
+    } llc;
+} user_can_TypeDef;
 
 
 /*================================================ CAN ================================================*/
@@ -728,6 +929,7 @@ bool				softstart_delay_ok;		//idle״̬�ӳ����
 //pfc_is_ok_cnt
 uint32_t 		pfc_is_ok_cnt;		//pfc�����ź�
 bool				pfc_is_ok;
+user_can_TypeDef user_can;
 
 uint32_t		ac_is_ok_cnt;			//AC_alarm
 bool				ac_is_ok;

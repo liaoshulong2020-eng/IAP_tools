@@ -25,24 +25,24 @@ void load_data_app(void)
 {
 	load_data_from_flash(&user_data);
 	
-	llc.protection_point.under_voltage_point			=		 user_data.under_voltage_point;					//Ç·Ñ¹±£»¤µã
-	llc.protection_point.under_voltage_rec_point 	=		 user_data.under_voltage_rec_point;			//Ç·Ñ¹»Ö¸´µã
+	llc.protection_point.under_voltage_point			=		 user_data.under_voltage_point;					//Ç·Ñ¹ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
+	llc.protection_point.under_voltage_rec_point 	=		 user_data.under_voltage_rec_point;			//Ç·Ñ¹ï¿½Ö¸ï¿½ï¿½ï¿½
 		
 	llc.vout_trim_delta = user_data.vout_trim_delta;
 	
-	llc.protection_point.over_voltage_point 			=		 user_data.over_voltage_point;					//¹ýÑ¹±£»¤µã
-	llc.protection_point.over_voltage_rec_point 	=		 user_data.over_voltage_rec_point;			//¹ýÑ¹»Ö¸´µã
+	llc.protection_point.over_voltage_point 			=		 user_data.over_voltage_point;					//ï¿½ï¿½Ñ¹ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
+	llc.protection_point.over_voltage_rec_point 	=		 user_data.over_voltage_rec_point;			//ï¿½ï¿½Ñ¹ï¿½Ö¸ï¿½ï¿½ï¿½
 		
-	llc.protection_point.over_current_point 			=		 user_data.over_current_point;					//¹ýÁ÷±£»¤µã
-	llc.protection_point.over_current_rec_point 	=		 user_data.over_current_rec_point;			//¹ýÁ÷»Ö¸´µã	
+	llc.protection_point.over_current_point 			=		 user_data.over_current_point;					//ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
+	llc.protection_point.over_current_rec_point 	=		 user_data.over_current_rec_point;			//ï¿½ï¿½ï¿½ï¿½ï¿½Ö¸ï¿½ï¿½ï¿½	
 			
-	llc.protection_point.over_temp_point 					=		 user_data.over_temp_point;							//¹ýÎÂ±£»¤µã
-	llc.protection_point.over_temp_rec_point 			=		 user_data.over_temp_rec_point;					//¹ýÎÂ»Ö¸´µã	
-	llc.temp_recover_mode 												=		 user_data.temp_recover_mode;						//¹ýÎÂ»Ö¸´Ä£Ê½
+	llc.protection_point.over_temp_point 					=		 user_data.over_temp_point;							//ï¿½ï¿½ï¿½Â±ï¿½ï¿½ï¿½ï¿½ï¿½
+	llc.protection_point.over_temp_rec_point 			=		 user_data.over_temp_rec_point;					//ï¿½ï¿½ï¿½Â»Ö¸ï¿½ï¿½ï¿½	
+	llc.temp_recover_mode 												=		 user_data.temp_recover_mode;						//ï¿½ï¿½ï¿½Â»Ö¸ï¿½Ä£Ê½
 	
 	llc.coef_target																=		 user_data.coef_target;
-	llc.vbus_target 															=		 llc.coef_target;									//Êä³öÄ¿±êµçÑ¹
-	llc.can_com_voltag_delta											=		 user_data.vout_can_delta;							//ÉÏ±¨Í¨ÐÅÎó²î
+	llc.vbus_target 															=		 llc.coef_target;									//ï¿½ï¿½ï¿½Ä¿ï¿½ï¿½ï¿½Ñ¹
+	llc.can_com_voltag_delta											=		 user_data.vout_can_delta;							//ï¿½Ï±ï¿½Í¨ï¿½ï¿½ï¿½ï¿½ï¿½
 	
 	llc.shareloop_kp_init 												= 	user_data.shareloop_kp_init;
 	llc.shareloop_ki_init 												= 	user_data.shareloop_ki_init;
@@ -81,9 +81,9 @@ void init_all_app(void)
 //		flash_data_init();
 //	 }
 	 
-	DEM_CR |= (uint32_t)DEM_CR_TRCENA; //¨º1?¨¹?¨²¡Á¨´??
-	DWT_CYCCNT = (uint32_t)0u; //?? CYCCNT ??¨ºy?? 0
-	DWT_CR |= (uint32_t)DWT_CR_CYCCNTENA; //¨º1?¨¹ CYCCNT ??
+	DEM_CR |= (uint32_t)DEM_CR_TRCENA; //ï¿½ï¿½1?ï¿½ï¿½?ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½??
+	DWT_CYCCNT = (uint32_t)0u; //?? CYCCNT ??ï¿½ï¿½y?? 0
+	DWT_CR |= (uint32_t)DWT_CR_CYCCNTENA; //ï¿½ï¿½1?ï¿½ï¿½ CYCCNT ??
   adc_init_app();
   hrpwm_init_app();
 	gpio_init_config();
@@ -97,7 +97,7 @@ void init_all_app(void)
 #if(!UART_FUNC)
   User_VOFA_Init();
 #else
-  User_VOFA_Init();
+  user_uart_init(USER_UART);
   can_init_app();
 #endif
 	can_send_data_init();

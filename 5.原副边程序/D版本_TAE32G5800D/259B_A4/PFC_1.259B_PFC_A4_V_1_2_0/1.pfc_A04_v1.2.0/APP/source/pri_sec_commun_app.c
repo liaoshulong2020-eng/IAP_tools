@@ -99,6 +99,7 @@ LL_StatusETypeDef uart_send_pfc_detail_info(void)
     
     // ʵʱֵ
     local_data.vbus_target.f = pfc.vbus_target;
+    local_data.vbus_ref.f = pfc.vbus_ref;
     local_data.vbus_rel.f = pfc.vbus_rel;
     local_data.iloop_rel.f = pfc.iloop.rel;
     local_data.vin_rel.f = pfc.vin_rel;

@@ -1,7 +1,7 @@
 {
   "bootFile": "259B-LLC/BootLoader-5800.hex",
-  "appFile": "259B-LLC/259B_LLC_V_1_2_0_20260711_iap_release.hex",
-  "outFile": "259B-LLC/259B_LLC_V_1_2_0_20260711_jlink_release.hex",
+  "appFile": "259B-LLC/259B_LLC_V_1_2_0_20260820_iap_release.hex",
+  "outFile": "259B-LLC/259B_LLC_V_1_2_0_20260820_jlink_release.hex",
   "bootMaxSize": 32768,
   "argBaseAddr": 28672,
   "appBaseAddr": 32768,

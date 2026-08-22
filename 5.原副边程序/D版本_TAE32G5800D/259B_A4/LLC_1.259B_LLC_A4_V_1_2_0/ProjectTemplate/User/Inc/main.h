@@ -38,6 +38,8 @@ extern "C" {
 #include "init_app.h"
 #include "vofa_app.h"
 #include "can_app.h"
+#include "uart_app.h"
+#include "pri_sec_commun.h"
 #include "protection_app.h"
 #include "communication_app.h"
 #include "llc_app.h"

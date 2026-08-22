@@ -49,7 +49,7 @@
             <InvalidFlash>1</InvalidFlash>
           </TargetStatus>
           <OutputDirectory>.\FLASH\Objects\</OutputDirectory>
-          <OutputName>259B_LLC_V_1_2_0_20260711_iap_release</OutputName>
+          <OutputName>259B_LLC_V_1_2_0_20260820_iap_release</OutputName>
           <CreateExecutable>1</CreateExecutable>
           <CreateLib>0</CreateLib>
           <CreateHexFile>1</CreateHexFile>
@@ -432,6 +432,16 @@
               <FileName>can_app.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\..\..\APP\source\can_app.c</FilePath>
+            </File>
+            <File>
+              <FileName>uart_app.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\..\APP\source\uart_app.c</FilePath>
+            </File>
+            <File>
+              <FileName>pri_sec_commun.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\..\APP\source\pri_sec_commun.c</FilePath>
             </File>
             <File>
               <FileName>protection_app.c</FileName>
@@ -1086,6 +1096,16 @@
               <FileName>can_app.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\..\..\APP\source\can_app.c</FilePath>
+            </File>
+            <File>
+              <FileName>uart_app.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\..\APP\source\uart_app.c</FilePath>
+            </File>
+            <File>
+              <FileName>pri_sec_commun.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\..\APP\source\pri_sec_commun.c</FilePath>
             </File>
             <File>
               <FileName>protection_app.c</FileName>

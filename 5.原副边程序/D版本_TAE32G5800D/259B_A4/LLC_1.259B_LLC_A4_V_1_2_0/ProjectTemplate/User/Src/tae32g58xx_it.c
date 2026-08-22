@@ -204,6 +204,11 @@ void CAN1_IRQHandler(void)
 {
 	LL_CAN_IRQHandler(CAN1);
 }
+
+void UART0_IRQHandler(void)
+{
+	LL_UART_IRQHandler(UART0);
+}
 /**
   * @}
   */
