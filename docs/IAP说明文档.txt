@@ -1,0 +1,80 @@
+1.有一块在线升级的IAP转接板,负责将USB数据转为CAN/PMBUS,输入端是USB,输出端是CAN/PMBUS,使用的是CommKit-5800代码,代码内容见目录(4. 转发板源程序)
+2.电脑通过USB口连接IAP转接板的USB输入口,转接板通过CAN或者PMBUS连接到目标板,与目标板通信,当目标板使用的是5300芯片时,使用的是pmbus通信,使用的是5800芯片时,使用的是can通信，切换通讯的方式是转接板的PE12(也可能是PB12，有时候改了引脚，具体以代码中的读取IO的代码为准)接到3.3v或者GND来区分
+3.目标板指的是电源模块,现在电源模块内部分为两个部分,一个是原边的PFC,一个是副边的LLC,其中LLC对外通信是CAN或者PMBUS,PFC对外无通信,通过UART与LLC进行通信;
+4.LLC部分使用的是bootloader+APP的代码模式,bootloader代码见目录(3. bootloader\BootLoader-5800)
+5.5300的FLASH一共是75KB,160个扇区,每个扇区480字节,5800的FLASH 256Kbyte 单Bank 模式下,共32 个Sector 扇区,每个Sector 扇区大小为8KB
+6.应用层代码的PFC部分见(5.原副边程序\1.pfc),LLC部分见(5.原副边程序\2.llc)
+7.关于芯片UART的例程见目录(D:\SVN1\4.IAP_new\12.UART_TxRx_DMA)
+
+当5300芯片不使用在线升级代码时,应用层代码的地址是:
+;#define __ROM_BASE      0x08000000
+;#define __ROM_SIZE      0x000129FF
+
+当5300芯片使用在线升级代码时,应用层代码的地址是:
+#define __ROM_BASE      0x08007800
+#define __ROM_SIZE      0xB400
+
+当5800芯片不使用在线升级代码时,应用层代码的地址是:
+;/* 无在线升级使用该地址*/
+#define __ROM_BASE      0x08000000
+#define __ROM_SIZE      0x00020000
+
+当5800芯片使用在线升级代码时,应用层代码的地址是:
+;/* 在线升级使用该地址 */
+;#define __ROM_BASE      0x08000000
+;#define __ROM_SIZE      0x38000
+
+最终,基于以上地址生成的烧录码,需要通过boot_config工具与bootloader烧录码合并,boot_config工具集成了预编译脚本和后处理脚本,并且我已经将5300芯片和5800芯片所需要的bootloader部分的烧录码内置在了里面,在编译代码后,它会自动调用相关脚本,生成合并文件(名称带有jlink),
+所以最后最终会生成四个文件 iap.bin和iap.hex这两个是直接编译的APP部分烧录码,可用于在线升级,直接烧录无法运行,jlink.bin和jlink.hex,这两个是经过合并后的代码,存在bootloader_app,直接烧录运行,boot_config工具源代码见工程目录(4.boot_config);
+
+生成最终的iap.bin/iap.hex文件,通过CAN通信或者PMBUS通信,使用在线升级工具iap_tools刷写到芯片中,iap_tools工具相关的源代码见目录(11.iap_tools);
+
+应用层的can通信代码相关的就是:                
+
+            case 0xAA55:// IAP 通信ID
+                // IAP处理
+                if(user_can_ctrl.rx_buf[user_can_ctrl.rx_cnt][0] == 2 && // LLC: 2, PFC: 1
+                   user_can_ctrl.rx_buf[user_can_ctrl.rx_cnt][1] == 0x41) {
+                    NVIC_SystemReset();
+                }
+                break;
+
+case 0x6C:
+				// IAP模式下,关闭PWM输出,关闭电流共享,复位系统进入bootloader
+				hrpwm_srdis_app();
+				hrpwm_outdis_app();
+				disable_current_sharing();
+				LL_GPIO_WritePin(GPIOA, GPIO_PIN_9, GPIO_PIN_SET);
+				LL_GPIO_WritePin(GPIOB, GPIO_PIN_8, GPIO_PIN_SET);
+				NVIC_SystemReset();
+				break;			
+			default:   
+在main函数中均有:      __enable_irq(); 
+
+目前以上通过IAP转接板对LLC进行在线升级已经成功。
+
+现在需要通过IAP转接板对PFC进行在线升级,个人建议：
+1.LLC代码中,除了固定的bootloader和可刷写的APP代码外,再增加一个固定的代码,用于透传(转发)数据,以此能够通过CAN或者PMBUS对PFC进行在线升级;
+2.当接收到升级命令,需要清楚如何判断是升级原边的PFC还是副边的LLC自己;
+需要完成：
+1.PFC部分的bootloader代码修改编写：3. bootloader\BootLoader-5800_pfc ，这是我直接拷贝 3. bootloader\BootLoader-5800 ，要求需要保证升级过程中的可靠性;
+2.LLC的代码 3. bootloader\BootLoader-5800_llc,增加对PFC的透传支持,实现通过CAN/PMBUS对PFC进行在线升级;
+3.在iap_tools工具中,增加对PFC的支持;
+4.在iap_config工具中,增加对PFC的支持;
+5.在IAP转接板的代码中(4. 转发板源程序),实现对PFC升级的支持;
+
+总之就是在原有的代码上修改,实现对原边PFC的在线升级支持;
+
+要求：
+1.保证升级过程的可靠性;
+2.升级过程需要有状态指示;
+3.升级过程需要有超时及重新尝试处理;
+4.升级过程需要有校验处理;
+5.升级过程需要有异常处理;
+6.升级过程需要有日志记录;
+7.升级过程需要有断点续传处理;
+8.升级过程需要有多版本支持;
+9.升级过程需要有用户交互界面;
+10.升级过程需要有安全性处理;
+11.要保证我的操作和从前一致,我编译bootloader,生成hex/bin,我编译APP,生成hex/bin,然后合并生成最终的jlink.hex/jlink.bin文件,直接烧录运行;
+12.转接板的操作也一样，我直接编译后烧录到转接板,然后通过USB连接转接板,通过CAN/PMBUS连接到目标板,进行在线升级;
