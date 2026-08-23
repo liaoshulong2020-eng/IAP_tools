@@ -1,0 +1,31 @@
+# 构建产物
+/build/
+/build_mingw13/
+/.qt/
+/dist/
+/packages/
+/vendor/
+/docs/official/
+*.o
+*.obj
+*.exe
+moc_*.cpp
+qrc_*.cpp
+ui_*.h
+Makefile
+Makefile.*
+.qmake.stash
+
+# Qt Creator / IDE
+*.pro.user
+*.pro.user.*
+.vscode/
+.idea/
+
+# 运行时资源（不在仓库，从 SDK/安装包获取）
+ControlCANFD.dll
+/config/
+/language/
+/help/
+/firmware/
+/data/
