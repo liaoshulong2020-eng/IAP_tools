@@ -2,10 +2,9 @@
 /build/
 /build_mingw13/
 /.qt/
-/dist/
-/packages/
-/vendor/
-/docs/official/
+/应用程序/
+/.setdb.txt.backup
+/_src/
 *.o
 *.obj
 *.exe
