@@ -27,6 +27,7 @@ namespace CAN_TOOLS
         private int _dataProcessPending = 0;
         private int _dataQueueLength = 0;
         private long _lastUiDataRefreshMs = 0;
+        private int _protectQueryInProgress = 0;
         private const int DATA_PROCESS_INTERVAL_MS = 100;
         private const int DATA_PROCESS_BATCH_LIMIT = 5000;
         private const int DATA_QUEUE_WARN_LIMIT = 50000;
@@ -1246,7 +1247,7 @@ namespace CAN_TOOLS
 
             byte mode = (byte)(_uartModeComboBox?.SelectedIndex == 0 ? 0x00 : 0x01);
             byte[] dataBytes = new byte[8] { 0x00, CMD_UART_MODE, mode, 0xA5, 0x5A, 0x00, 0x00, 0x00 };
-            SendCANFrame(dataBytes, 5, overrideId1: 0x20, overrideId2: 0x20);
+            SendCANFrame(dataBytes, 5);
 
             string modeText = mode == 0 ? "调试模式（VOFA）" : "原副边通讯模式";
             if (_uartModeStatusLabel != null)
@@ -1301,9 +1302,12 @@ namespace CAN_TOOLS
                     if (string.IsNullOrEmpty(textBox_masterAddr1.Text))
                     {
                         checkBox_ch1Enable.Checked = false;
-                        return;
+                        ch1Enabled = false;
                     }
-                    master_id1 = Convert.ToUInt32(textBox_masterAddr1.Text, 16);
+                    else
+                    {
+                        master_id1 = Convert.ToUInt32(textBox_masterAddr1.Text, 16);
+                    }
                 }
                 if (overrideId2.HasValue)
                 {
@@ -1314,9 +1318,17 @@ namespace CAN_TOOLS
                     if (string.IsNullOrEmpty(textBox_masterAddr2.Text))
                     {
                         checkBox_ch2Enable.Checked = false;
-                        return;
+                        ch2Enabled = false;
                     }
-                    master_id2 = Convert.ToUInt32(textBox_masterAddr2.Text, 16);
+                    else
+                    {
+                        master_id2 = Convert.ToUInt32(textBox_masterAddr2.Text, 16);
+                    }
+                }
+
+                if (!overrideId1.HasValue && !overrideId2.HasValue && !ch1Enabled && !ch2Enabled)
+                {
+                    return;
                 }
 
                 int frame_type_index = 1; // 扩展帧
@@ -2348,40 +2360,119 @@ namespace CAN_TOOLS
             UpdateDisplay($"id_ch{ch}", $"0x{actualId:X5}");
         }
 
-        // 发送保护点查询命令到所有已注册设备
-        private void SendProtectQueryCommands()
+        // 发送保护点查询命令到当前启用的CAN通道。后台分帧发送，避免ZCAN_Transmit阻塞UI线程。
+        private async Task SendProtectQueryCommandsAsync()
         {
             if (!m_bStart) return;
-            // 保护点查询命令通过主机地址广播发送（与普通查询命令相同方式）
-            // LLC 保护点
-            byte[] dataBytes3E = new byte[8] { 0x00, CMD_LLC_TEMP_PROTECT, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
-            byte[] dataBytes3F = new byte[8] { 0x00, CMD_LLC_VOLTAGE_PROTECT, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
-            byte[] dataBytes40 = new byte[8] { 0x00, CMD_LLC_OCP_PROTECT, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
-            byte[] dataBytes41 = new byte[8] { 0x00, CMD_LLC_OSP_PROTECT, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
-            byte[] dataBytes44 = new byte[8] { 0x00, CMD_LLC_OUT_PARA, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
-            SendCANFrame(dataBytes3E, 2);
-            SendCANFrame(dataBytes3F, 2);
-            SendCANFrame(dataBytes40, 2);
-            SendCANFrame(dataBytes41, 2);
-            SendCANFrame(dataBytes44, 2);
+            if (Interlocked.Exchange(ref _protectQueryInProgress, 1) == 1) return;
 
-            // PFC 保护点查询（对应 MCU variables_define_app.h 中 CommandType 0x30~0x35）
-            byte[] dataBytes30 = new byte[8] { 0x00, CMD_PFC_INPUT_OVP,  0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
-            byte[] dataBytes31 = new byte[8] { 0x00, CMD_PFC_INPUT_UVP,  0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
-            byte[] dataBytes32 = new byte[8] { 0x00, CMD_PFC_OUTPUT_OVP, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
-            byte[] dataBytes33 = new byte[8] { 0x00, CMD_PFC_OUTPUT_UVP, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
-            byte[] dataBytes34 = new byte[8] { 0x00, CMD_PFC_INPUT_OCP,  0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
-            byte[] dataBytes35 = new byte[8] { 0x00, CMD_PFC_DATA,       0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
-            byte[] dataBytes36 = new byte[8] { 0x00, CMD_PFC_DATA_LIVE1, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
-            byte[] dataBytes37 = new byte[8] { 0x00, CMD_PFC_DATA_LIVE2, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
-            SendCANFrame(dataBytes30, 2);
-            SendCANFrame(dataBytes31, 2);
-            SendCANFrame(dataBytes32, 2);
-            SendCANFrame(dataBytes33, 2);
-            SendCANFrame(dataBytes34, 2);
-            SendCANFrame(dataBytes35, 2);
-            SendCANFrame(dataBytes36, 2);
-            SendCANFrame(dataBytes37, 2);
+            button_queryProtect.Enabled = false;
+            try
+            {
+                var targets = GetCurrentCanSendTargets();
+                if (targets.Count == 0) return;
+
+                byte[] llcCommands =
+                {
+                    CMD_LLC_TEMP_PROTECT,
+                    CMD_LLC_VOLTAGE_PROTECT,
+                    CMD_LLC_OCP_PROTECT,
+                    CMD_LLC_OSP_PROTECT,
+                    CMD_LLC_OUT_PARA
+                };
+
+                byte[] pfcCommands =
+                {
+                    CMD_PFC_INPUT_OVP,
+                    CMD_PFC_INPUT_UVP,
+                    CMD_PFC_OUTPUT_OVP,
+                    CMD_PFC_OUTPUT_UVP,
+                    CMD_PFC_INPUT_OCP,
+                    CMD_PFC_DATA,
+                    CMD_PFC_DATA_LIVE1,
+                    CMD_PFC_DATA_LIVE2
+                };
+
+                button_queryProtect.Text = "查询中...";
+                await Task.Run(async () =>
+                {
+                    for (int round = 0; round < 2; round++)
+                    {
+                        await SendProtectCommandGroupAsync(targets, llcCommands, 120).ConfigureAwait(false);
+                        await Task.Delay(250).ConfigureAwait(false);
+
+                        await SendProtectCommandGroupAsync(targets, pfcCommands, 180).ConfigureAwait(false);
+                        if (round == 0)
+                            await Task.Delay(350).ConfigureAwait(false);
+                    }
+                }).ConfigureAwait(true);
+            }
+            catch (Exception ex)
+            {
+                AppendRecvLog($"查询保护点异常: {ex.Message}");
+            }
+            finally
+            {
+                button_queryProtect.Text = "查询保护点";
+                button_queryProtect.Enabled = true;
+                Interlocked.Exchange(ref _protectQueryInProgress, 0);
+            }
+        }
+
+        private async Task SendProtectCommandGroupAsync(List<(IntPtr Handle, uint CanId)> targets, byte[] commands, int intervalMs)
+        {
+            foreach (byte command in commands)
+            {
+                byte[] dataBytes = new byte[8] { 0x00, command, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
+                foreach (var target in targets)
+                {
+                    TransmitCanFrameRaw(target.Handle, target.CanId, dataBytes, 2);
+                }
+
+                await Task.Delay(intervalMs).ConfigureAwait(false);
+            }
+        }
+
+        private List<(IntPtr Handle, uint CanId)> GetCurrentCanSendTargets()
+        {
+            var targets = new List<(IntPtr Handle, uint CanId)>();
+
+            if (checkBox_ch1Enable.Checked && !string.IsNullOrWhiteSpace(textBox_masterAddr1.Text))
+            {
+                targets.Add((channel_handle_, Convert.ToUInt32(textBox_masterAddr1.Text, 16)));
+            }
+
+            if (checkBox_ch2Enable.Checked && !string.IsNullOrWhiteSpace(textBox_masterAddr2.Text))
+            {
+                targets.Add((channel_handle2_, Convert.ToUInt32(textBox_masterAddr2.Text, 16)));
+            }
+
+            return targets;
+        }
+
+        private void TransmitCanFrameRaw(IntPtr channelHandle, uint canId, byte[] dataBytes, byte dataLength)
+        {
+            if (channelHandle == IntPtr.Zero) return;
+
+            IntPtr ptr = IntPtr.Zero;
+            try
+            {
+                ZCAN_Transmit_Data canData = new ZCAN_Transmit_Data();
+                canData.frame.can_id = MakeCanId(canId, 1, 0, 0);
+                canData.frame.data = new byte[8];
+                Array.Copy(dataBytes, canData.frame.data, Math.Min(dataBytes.Length, 8));
+                canData.frame.can_dlc = dataLength;
+                canData.transmit_type = 0;
+
+                ptr = Marshal.AllocHGlobal(Marshal.SizeOf(canData));
+                Marshal.StructureToPtr(canData, ptr, true);
+                Method.ZCAN_Transmit(channelHandle, ptr, 1);
+            }
+            finally
+            {
+                if (ptr != IntPtr.Zero)
+                    Marshal.FreeHGlobal(ptr);
+            }
         }
 
         private void SendCommandToDevice(uint deviceId, byte command)
@@ -2749,9 +2840,9 @@ namespace CAN_TOOLS
             }
         }
 
-        private void Button_queryProtect_Click(object? sender, EventArgs e)
+        private async void Button_queryProtect_Click(object? sender, EventArgs e)
         {
-            SendProtectQueryCommands();
+            await SendProtectQueryCommandsAsync();
         }
 
         private void UpdateChannelCurrent(uint id, double current)
