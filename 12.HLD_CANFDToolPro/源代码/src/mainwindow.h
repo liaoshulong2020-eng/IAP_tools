@@ -63,16 +63,18 @@ struct MonitorUi {
     QLabel *overCurrent = nullptr;
     QLabel *overTemperature = nullptr;
     QLabel *powerStatus = nullptr;
+    QLabel *sharing = nullptr;
     QPushButton *powerControl = nullptr;
     QPushButton *calibrate = nullptr;
     QDoubleSpinBox *actualVoltage = nullptr;
     QDoubleSpinBox *targetVoltage = nullptr;
     QTimer *commFlash = nullptr;
-    std::array<QWidget*, 18> cells{};
+    std::array<QWidget*, 19> cells{};
     quint64 frames = 0;
     quint64 lastCommMs = 0;
     uint32_t deviceId = 0;
     int channel = -1;
+    double currentValue = 0.0;
     bool powerOn = false;
     bool visible = false;
 };
@@ -163,6 +165,7 @@ private:
     void sendCommand(uint8_t command, const QByteArray &payload = {}, bool withCrc = false, bool quiet = false);
     void sendCommandToDevice(int channel, uint32_t id, uint8_t command, const QByteArray &payload = {}, bool withCrc = false);
     void updateMonitor(const ModelItem &frame);
+    void updateCurrentSharing();
     void parseProtocol(const ModelItem &frame);
     QWidget *makeMonitorPage();
     QWidget *makeProtectPage();
@@ -193,6 +196,7 @@ private:
     QTableWidget *pfcTable_ = nullptr;
     QProgressBar *busLoad_ = nullptr;
     QLabel *queryCountLabel_ = nullptr;   // 查询发送计数
+    QLabel *totalSharingLabel_ = nullptr; // 总均流度
 
     // 监控协议状态
     std::array<MonitorUi, 10> monitor_{};

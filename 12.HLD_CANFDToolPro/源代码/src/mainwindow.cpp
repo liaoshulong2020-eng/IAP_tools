@@ -142,10 +142,26 @@ MainWindow::~MainWindow()
 
 void MainWindow::closeEvent(QCloseEvent *event)
 {
+    // 先停止定时器和收发线程，再关闭 CAN 设备，确保设备句柄被正确释放。
+    queryTimer_.stop();
+    devicePollTimer_.stop();
+
+    recvThread_.stop();
+    recvThread_.wait(2000);
+    for (int i = 0; i < 2; ++i) {
+        sendThread_[i].stop();
+        sendThread_[i].wait(2000);
+    }
+
+    if (monitorSaving_) monitorCsvWriter_.stop();
+    monitorCsvWriter_.join();
     if (realSaving_) {
         csvWriter_.stop();
+        csvWriter_.join();
         realSaving_ = false;
     }
+
+    device_.close();
     saveConfig();
     event->accept();
 }
@@ -1232,6 +1248,7 @@ void MainWindow::updateMonitor(const ModelItem &frame)
         m.deviceId = frame.id;
         m.channel = frame.channel;
         m.powerOn = (state & 0x01);
+        m.currentValue = current;
         m.count->setText(QStringLiteral("0x%1").arg(uint8_t(d[0]), 2, 16, QLatin1Char('0')).toUpper());
         if (state & 0x20) {
             m.lastCommMs = quint64(QDateTime::currentMSecsSinceEpoch());
@@ -1261,6 +1278,60 @@ void MainWindow::updateMonitor(const ModelItem &frame)
             .arg(version / 100).arg((version / 10) % 10).arg(version % 10)
             .arg(uint8_t(d[3]), 2, 10, QLatin1Char('0')).arg(uint8_t(d[4]), 2, 10, QLatin1Char('0')).arg(uint8_t(d[5]), 2, 10, QLatin1Char('0')));
         m.count->setText(QStringLiteral("0x%1").arg(uint8_t(d[0]), 2, 16, QLatin1Char('0')).toUpper());
+    }
+    updateCurrentSharing();
+}
+
+void MainWindow::updateCurrentSharing()
+{
+    // 收集活跃模块电流（电流 > 0.1A 视为在线）
+    QList<double> currents;
+    for (int i = 0; i < int(monitor_.size()); ++i) {
+        if (monitor_[i].visible && monitor_[i].currentValue > 0.1)
+            currents.append(monitor_[i].currentValue);
+    }
+
+    double totalSharing = 100.0;
+    double avgCurrent = 0.0;
+    if (currents.size() >= 2) {
+        double maxCurrent = currents.first();
+        double minCurrent = currents.first();
+        double sum = 0.0;
+        for (double c : currents) {
+            if (c > maxCurrent) maxCurrent = c;
+            if (c < minCurrent) minCurrent = c;
+            sum += c;
+        }
+        avgCurrent = sum / currents.size();
+        if (avgCurrent >= 0.01) {
+            totalSharing = (1.0 - (maxCurrent - minCurrent) / avgCurrent) * 100.0;
+            if (totalSharing < 0.0) totalSharing = 0.0;
+            if (totalSharing > 100.0) totalSharing = 100.0;
+        }
+    }
+
+    for (int i = 0; i < int(monitor_.size()); ++i) {
+        auto &m = monitor_[i];
+        if (!m.visible || !m.sharing) continue;
+        if (m.currentValue <= 0.1) {
+            m.sharing->setText(QStringLiteral("---"));
+            m.sharing->setStyleSheet(QStringLiteral("color:#6f7782;"));
+            continue;
+        }
+        if (currents.size() < 2 || avgCurrent < 0.01) {
+            m.sharing->setText(QStringLiteral("100%"));
+            m.sharing->setStyleSheet(QStringLiteral("color:#19934a;font-weight:600;"));
+        } else {
+            const double percent = (m.currentValue - avgCurrent) / avgCurrent * 100.0;
+            m.sharing->setText(QStringLiteral("%1%").arg(percent, 0, 'f', 1));
+            m.sharing->setStyleSheet(qAbs(percent) > 5.0
+                ? QStringLiteral("color:#d32f2f;font-weight:600;")
+                : QStringLiteral("color:#19934a;font-weight:600;"));
+        }
+    }
+
+    if (totalSharingLabel_) {
+        totalSharingLabel_->setText(tr("总均流度: %1%").arg(totalSharing, 0, 'f', 1));
     }
 }
 
@@ -1412,15 +1483,18 @@ QWidget *MainWindow::makeMonitorPage()
     title->setStyleSheet(QStringLiteral("font-weight:600;"));
     queryCountLabel_ = new QLabel(tr("查询发送: 0 次"), page);
     queryCountLabel_->setStyleSheet(QStringLiteral("color:#555;"));
+    totalSharingLabel_ = new QLabel(tr("总均流度: 100.0%"), page);
+    totalSharingLabel_->setStyleSheet(QStringLiteral("color:#19934a;font-weight:600;"));
     titleRow->addWidget(title);
     titleRow->addStretch();
+    titleRow->addWidget(totalSharingLabel_);
     titleRow->addWidget(queryCountLabel_);
     v->addLayout(titleRow);
 
     auto *grid = new QGridLayout;
     grid->setHorizontalSpacing(12);
     grid->setVerticalSpacing(2);
-    const QStringList headers = { tr("通道"), tr("通讯"), tr("CNT"), tr("设备 ID"), tr("电压"), tr("电流"), tr("功率"), tr("温度"), tr("版本"), tr("过压"), tr("欠压"), tr("过流"), tr("过温"), tr("状态"), tr("控制"), tr("实际(V)"), tr("目标(V)"), tr("校准") };
+    const QStringList headers = { tr("通道"), tr("通讯"), tr("CNT"), tr("设备 ID"), tr("电压"), tr("电流"), tr("功率"), tr("温度"), tr("均流"), tr("版本"), tr("过压"), tr("欠压"), tr("过流"), tr("过温"), tr("状态"), tr("控制"), tr("实际(V)"), tr("目标(V)"), tr("校准") };
     for (int c = 0; c < headers.size(); ++c) {
         auto *label = new QLabel(headers[c], page);
         label->setAlignment(Qt::AlignCenter);
@@ -1445,6 +1519,7 @@ QWidget *MainWindow::makeMonitorPage()
         m.overCurrent = new QLabel(tr("正常"), page);
         m.overTemperature = new QLabel(tr("正常"), page);
         m.powerStatus = new QLabel(tr("关闭"), page);
+        m.sharing = new QLabel(QStringLiteral("---"), page);
         m.powerControl = new QPushButton(tr("开启"), page);
         m.powerControl->setEnabled(false);
         m.actualVoltage = new QDoubleSpinBox(page);
@@ -1463,7 +1538,7 @@ QWidget *MainWindow::makeMonitorPage()
         m.commFlash->setSingleShot(true);
         m.commFlash->setInterval(100);
 
-        QList<QLabel*> labels = { m.channelLabel, m.communication, m.count, m.id, m.voltage, m.current, m.power, m.temperature, m.version, m.overVoltage, m.underVoltage, m.overCurrent, m.overTemperature, m.powerStatus };
+        QList<QLabel*> labels = { m.channelLabel, m.communication, m.count, m.id, m.voltage, m.current, m.power, m.temperature, m.sharing, m.version, m.overVoltage, m.underVoltage, m.overCurrent, m.overTemperature, m.powerStatus };
         for (int c = 0; c < labels.size(); ++c) {
             labels[c]->setAlignment(Qt::AlignCenter);
             labels[c]->setMinimumHeight(38);
@@ -1473,11 +1548,11 @@ QWidget *MainWindow::makeMonitorPage()
             labels[c]->hide();
         }
         m.powerControl->setMinimumHeight(30);
-        grid->addWidget(m.powerControl, r + 1, 14); m.cells[14] = m.powerControl;
-        grid->addWidget(m.actualVoltage, r + 1, 15); m.cells[15] = m.actualVoltage;
-        grid->addWidget(m.targetVoltage, r + 1, 16); m.cells[16] = m.targetVoltage;
-        grid->addWidget(m.calibrate, r + 1, 17); m.cells[17] = m.calibrate;
-        for (int c = 14; c < 18; ++c) m.cells[c]->hide();
+        grid->addWidget(m.powerControl, r + 1, 15); m.cells[15] = m.powerControl;
+        grid->addWidget(m.actualVoltage, r + 1, 16); m.cells[16] = m.actualVoltage;
+        grid->addWidget(m.targetVoltage, r + 1, 17); m.cells[17] = m.targetVoltage;
+        grid->addWidget(m.calibrate, r + 1, 18); m.cells[18] = m.calibrate;
+        for (int c = 15; c < 19; ++c) m.cells[c]->hide();
         connect(m.commFlash, &QTimer::timeout, this, [this, r] {
             auto &item = monitor_[r];
             if (item.communication) item.communication->setStyleSheet(QStringLiteral("color:#909090;font-size:18px;"));
@@ -1506,8 +1581,9 @@ QWidget *MainWindow::makeMonitorPage()
     grid->setColumnMinimumWidth(2, 46);
     grid->setColumnMinimumWidth(3, 72);
     for (int c = 4; c <= 7; ++c) grid->setColumnMinimumWidth(c, 58);
-    grid->setColumnMinimumWidth(8, 145);
-    grid->setColumnStretch(8, 1);
+    grid->setColumnMinimumWidth(8, 52);
+    grid->setColumnMinimumWidth(9, 72);
+    grid->setColumnStretch(9, 1);
     v->addLayout(grid);
     v->addStretch();
     return page;
@@ -1706,7 +1782,7 @@ QWidget *MainWindow::makeIapPage()
     grid->addWidget(file, 3, 1, 1, 2);
     grid->addWidget(browse, 3, 3);
     auto *actions = new QHBoxLayout;
-    auto *start = new QPushButton(tr("固定ID升级"), settings);
+    auto *start = new QPushButton(tr("批量升级"), settings);
     auto *stop = new QPushButton(tr("停止"), settings);
     stop->setEnabled(false);
     auto *state = new QLabel(tr("就绪，请确认 CAN 已启动"), settings);
@@ -1718,12 +1794,6 @@ QWidget *MainWindow::makeIapPage()
     root->addWidget(settings);
     auto *progress = new QProgressBar(page);
     progress->setRange(0, 100);
-    progress->setMinimumHeight(28);
-    progress->setTextVisible(true);
-    progress->setStyleSheet(QStringLiteral(
-        "QProgressBar { border: 1px solid #bcbcbc; border-radius: 4px; text-align: center; background-color: #f3f3f3; font-weight: bold; font-size: 13px; color: #111; }"
-        "QProgressBar::chunk { background-color: #0078d4; border-radius: 3px; }"
-    ));
     root->addWidget(progress);
     auto *hint = new QLabel(tr("固定ID模式使用扩展帧 ID 0xAA55；节点ID模式使用 0xA0000~0xA0007；包内地址 LLC=2、PFC=1。"), page);
     hint->setWordWrap(true);
@@ -1732,10 +1802,6 @@ QWidget *MainWindow::makeIapPage()
     log->setReadOnly(true);
     log->setPlaceholderText(tr("IAP 日志"));
     root->addWidget(log, 1);
-
-    // 默认开启固定ID 0xAA55
-    mode->setCurrentIndex(1);
-    nodes->setVisible(false);
 
     connect(browse, &QPushButton::clicked, this, [this, file] {
         const auto path = QFileDialog::getOpenFileName(this, tr("选择固件"), {}, tr("固件文件 (*.bin *.hex)"));
@@ -1761,7 +1827,7 @@ QWidget *MainWindow::makeIapPage()
         progress->setValue(0);
         start->setEnabled(false);
         stop->setEnabled(true);
-        state->setText(tr("升级中..."));
+        state->setText(tr("批量升级中"));
         *next = [this, ids, index, next, canChannel, targetAddress, firmware, log, state, progress, start, stop]() {
             if (*index >= ids->size()) {
                 start->setEnabled(true); stop->setEnabled(false); state->setText(tr("全部节点升级完成")); *next = {}; return;
@@ -1778,13 +1844,7 @@ QWidget *MainWindow::makeIapPage()
                     return true;
                 },
                 [this, log](const QString &text) {
-                    QMetaObject::invokeMethod(this, [log, text] {
-                        if (text.startsWith(QLatin1String("---"))) {
-                            log->appendPlainText(text);
-                        } else {
-                            log->appendPlainText(QTime::currentTime().toString(QStringLiteral("hh:mm:ss ")) + text);
-                        }
-                    }, Qt::QueuedConnection);
+                    QMetaObject::invokeMethod(this, [log, text] { log->appendPlainText(QTime::currentTime().toString(QStringLiteral("hh:mm:ss ")) + text); }, Qt::QueuedConnection);
                 },
                 [this, progress](int value) {
                     QMetaObject::invokeMethod(this, [progress, value] { progress->setValue(value); }, Qt::QueuedConnection);
