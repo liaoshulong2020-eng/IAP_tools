@@ -28,6 +28,7 @@ class QTableView;
 class QTableWidget;
 class QGroupBox;
 class MyTableModel;
+class listSendDlg;
 
 // 单通道发送面板控件集合（对象名与 on_* 自动连接对应）
 struct ChannelPanel {
@@ -42,7 +43,7 @@ struct ChannelPanel {
     QLineEdit  *invEdit   = nullptr; // ch?SendInvEdit
     QCheckBox  *idAdd     = nullptr; // ch?IDAddChk
     QCheckBox  *dataAdd   = nullptr; // ch?DataAddChk
-    QCheckBox  *continuous= nullptr; // 连续发送
+    QCheckBox  *continuous= nullptr; // 持续发送（不限次数）
     QPushButton *sendBtn  = nullptr; // ch?SendBtn
     QPushButton *stopBtn  = nullptr; // ch?StopSendBtn
 };
@@ -149,6 +150,7 @@ private:
     void appendLog(const QString &msg);
     void startSend(int channel);
     void stopSend(int channel);
+    void openSequenceSend(int channel);
     bool parseSendData(int channel, QByteArray &data, quint32 &id);
     void saveConfig();
     void loadConfigIntoUi();
@@ -177,6 +179,7 @@ private:
     recvThread recvThread_;
     sendThread sendThread_[2];
     IapUpgrade iap_;
+    listSendDlg *sequenceDlg_[2]{ nullptr, nullptr };
 
     // UI
     ChannelPanel ch_[2];

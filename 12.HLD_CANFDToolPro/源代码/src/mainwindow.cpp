@@ -187,13 +187,17 @@ void MainWindow::buildUi()
         connect(b, &QPushButton::clicked, this, slot);
         topBar->addWidget(b);
     };
-    addBtn(tr("参数设置"), &MainWindow::openParameterSetting);
-    addBtn(tr("滤波设置"), &MainWindow::openFilterSetting);
-    addBtn(tr("设备信息"), &MainWindow::openDeviceInfo);
-    addBtn(tr("固件升级"), &MainWindow::openFirmwareUpgrade);
+    auto *canSettingsBtn = new QPushButton(tr("CAN设置"), central);
+    canSettingsBtn->setMinimumWidth(105);
+    auto *canSettingsMenu = new QMenu(canSettingsBtn);
+    canSettingsMenu->addAction(tr("参数设置"), this, &MainWindow::openParameterSetting);
+    canSettingsMenu->addAction(tr("滤波设置"), this, &MainWindow::openFilterSetting);
+    canSettingsMenu->addSeparator();
+    canSettingsMenu->addAction(tr("设备信息"), this, &MainWindow::openDeviceInfo);
+    canSettingsMenu->addAction(tr("固件升级"), this, &MainWindow::openFirmwareUpgrade);
+    canSettingsBtn->setMenu(canSettingsMenu);
+    topBar->addWidget(canSettingsBtn);
     topBar->addStretch();
-    addBtn(tr("列表发送"), &MainWindow::openListSend);
-    addBtn(tr("文件发送"), &MainWindow::openFileSend);
     addBtn(tr("关于"), &MainWindow::showAbout);
     rootLayout->addLayout(topBar);
 
@@ -310,10 +314,14 @@ QGroupBox *MainWindow::buildChannelPanel(int channel)
     p.frameData->addItems({ tr("数据帧"), tr("远程帧") });
     grid->addWidget(p.frameData, 0, 5);
 
-    addLabel(0, 6, tr("发送方式"));
+    addLabel(0, 6, tr("重发策略"));
     p.sendType = new QComboBox(group);
     p.sendType->setObjectName(prefix + QStringLiteral("SendTypeCombo"));
-    p.sendType->addItems({ tr("正常发送"), tr("单次发送") });
+    p.sendType->addItems({ tr("失败自动重发"), tr("失败不重发") });
+    p.sendType->setItemData(0, tr("遵循 CAN 正常机制：发送失败时由控制器自动重发"), Qt::ToolTipRole);
+    p.sendType->setItemData(1, tr("每帧只尝试一次；发送失败后不自动重发"), Qt::ToolTipRole);
+    p.sendType->setToolTip(tr("正常发送：失败后由 CAN 控制器自动重发\n"
+                              "单次发送：每帧只尝试一次，失败后不重发"));
     grid->addWidget(p.sendType, 0, 7);
 
     // 第二行：ID / 数据
@@ -330,10 +338,18 @@ QGroupBox *MainWindow::buildChannelPanel(int channel)
     p.sendLen->setCurrentIndex(8);
     grid->addWidget(p.sendLen, 1, 5);
 
+    p.idAdd = new QCheckBox(tr("ID自增"), group);
+    p.idAdd->setObjectName(prefix + QStringLiteral("IDAddChk"));
+    grid->addWidget(p.idAdd, 1, 6, 1, 2);
+
     addLabel(2, 0, tr("数据"));
     p.dataEdit = new QLineEdit(group);
     p.dataEdit->setObjectName(prefix + QStringLiteral("SendDataEdit"));
-    grid->addWidget(p.dataEdit, 2, 1, 1, 7);
+    grid->addWidget(p.dataEdit, 2, 1, 1, 5);
+
+    p.dataAdd = new QCheckBox(tr("数据自增"), group);
+    p.dataAdd->setObjectName(prefix + QStringLiteral("DataAddChk"));
+    grid->addWidget(p.dataAdd, 2, 6, 1, 2);
 
     // 第三行：次数 / 间隔 / 自增
     addLabel(3, 0, tr("次数"));
@@ -356,24 +372,21 @@ QGroupBox *MainWindow::buildChannelPanel(int channel)
             sendThread_[channel].setInterval(interval);
     });
 
-    p.idAdd = new QCheckBox(tr("ID自增"), group);
-    p.idAdd->setObjectName(prefix + QStringLiteral("IDAddChk"));
-    grid->addWidget(p.idAdd, 3, 4);
+    p.continuous = new QCheckBox(tr("持续发送"), group);
+    p.continuous->setToolTip(tr("不限发送次数，直到点击停止"));
+    grid->addWidget(p.continuous, 3, 4, 1, 2);
+    connect(p.continuous, &QCheckBox::toggled, p.countEdit, &QWidget::setDisabled);
 
-    p.dataAdd = new QCheckBox(tr("数据自增"), group);
-    p.dataAdd->setObjectName(prefix + QStringLiteral("DataAddChk"));
-    grid->addWidget(p.dataAdd, 3, 5);
-
-    p.continuous = new QCheckBox(tr("连续发送"), group);
-    grid->addWidget(p.continuous, 3, 6, 1, 2);
-
-    // 第四行：发送 / 停止
+    // 第四行：普通发送 / 停止 / 序列发送
     p.sendBtn = new QPushButton(tr("发送"), group);
     p.sendBtn->setObjectName(prefix + QStringLiteral("SendBtn"));
     p.stopBtn = new QPushButton(tr("停止"), group);
     p.stopBtn->setObjectName(prefix + QStringLiteral("StopSendBtn"));
-    grid->addWidget(p.sendBtn, 4, 0, 1, 4);
-    grid->addWidget(p.stopBtn, 4, 4, 1, 4);
+    auto *sequenceBtn = new QPushButton(tr("序列发送"), group);
+    connect(sequenceBtn, &QPushButton::clicked, this, [this, channel] { openSequenceSend(channel); });
+    grid->addWidget(p.sendBtn, 4, 0, 1, 3);
+    grid->addWidget(p.stopBtn, 4, 3, 1, 3);
+    grid->addWidget(sequenceBtn, 4, 6, 1, 2);
 
     return group;
 }
@@ -548,8 +561,40 @@ void MainWindow::openFilterSetting()
 
 void MainWindow::openListSend()
 {
-    listSendDlg dlg(&device_, this);
-    dlg.exec();
+    openSequenceSend(0);
+}
+
+void MainWindow::openSequenceSend(int channel)
+{
+    if (sequenceDlg_[channel]) {
+        sequenceDlg_[channel]->show();
+        sequenceDlg_[channel]->raise();
+        sequenceDlg_[channel]->activateWindow();
+        return;
+    }
+
+    auto *dlg = new listSendDlg(&device_, channel, ch_[channel].protocol->currentIndex() == 1, this);
+    sequenceDlg_[channel] = dlg;
+    dlg->setAttribute(Qt::WA_DeleteOnClose);
+    connect(dlg, &QObject::destroyed, this, [this, channel] { sequenceDlg_[channel] = nullptr; });
+    connect(dlg, &listSendDlg::sequenceStarted, this, [this](int ch, int count, bool loop) {
+        appendLog(tr("通道%1 序列发送开始：%2帧，%3模式。")
+                  .arg(ch + 1).arg(count).arg(loop ? tr("循环") : tr("单次")));
+    });
+    connect(dlg, &listSendDlg::frameSent, this, [this](const ModelItem &item) {
+        onSendedData(QList<ModelItem>{ item });
+        appendLog(tr("序列发送 通道%1：ID=0x%2，数据=%3")
+                  .arg(item.channel + 1)
+                  .arg(item.id, 0, 16)
+                  .arg(QString::fromLatin1(item.data.toHex(' ').toUpper())));
+    });
+    connect(dlg, &listSendDlg::sequenceFinished, this, [this](int ch) {
+        appendLog(tr("通道%1 序列单次发送完成。").arg(ch + 1));
+    });
+    connect(dlg, &listSendDlg::sequenceStopped, this, [this](int ch) {
+        appendLog(tr("通道%1 序列发送已停止。").arg(ch + 1));
+    });
+    dlg->show();
 }
 
 void MainWindow::openFileSend()
@@ -742,12 +787,15 @@ void MainWindow::switchLanguage(const QString &langFile)
 
 void MainWindow::showAbout()
 {
-    const QStringList company = ConfigManager::companyNames();
-    const QString org = company.isEmpty() ? QStringLiteral("Zhuhai ChuangXin Tec.co") : company.first();
     QMessageBox::about(this, tr("关于 HLD_CANFDToolPro"),
-                       QStringLiteral("<b>HLD_CANFDToolPro v1.0</b><br>")
-                       + tr("USB CAN/CAN-FD 分析仪") + QStringLiteral("<br><br>")
-                       + QStringLiteral("(C)2023, ") + org);
+                       QStringLiteral("<div style='text-align:center'>"
+                                      "<h2>HLD_CANFDToolPro</h2>"
+                                      "<p><b>版本：v1.0</b></p>"
+                                      "<p>USB CAN/CAN-FD 通信、分析与设备调试工具</p>"
+                                      "<p><b>深圳中瀚蓝盾电源有限公司</b></p>"
+                                      "<p>Copyright &copy; 2025 深圳中瀚蓝盾电源有限公司<br>"
+                                      "All rights reserved.</p>"
+                                      "</div>"));
 }
 
 void MainWindow::openHelpFolder()
@@ -1057,7 +1105,7 @@ void MainWindow::startSend(int channel)
     sendThread_[channel].start(cfg);
 
     if (cfg.continuous)
-        appendLog(tr("通道%1 开始发送数据：连续发送，发送间隔%2ms...")
+        appendLog(tr("通道%1 开始发送数据：持续发送，发送间隔%2ms...")
                   .arg(channel + 1).arg(cfg.intervalMs));
     else
         appendLog(tr("通道%1 开始发送数据：共%2帧，发送间隔%3ms...")
@@ -1067,6 +1115,8 @@ void MainWindow::startSend(int channel)
 void MainWindow::stopSend(int channel)
 {
     sendThread_[channel].stop();
+    if (sequenceDlg_[channel])
+        sequenceDlg_[channel]->stopSending();
     appendLog(tr("数据发送已中止！"));
 }
 
