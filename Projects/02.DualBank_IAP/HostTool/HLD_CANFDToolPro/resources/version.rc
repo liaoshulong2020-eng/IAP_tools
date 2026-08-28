@@ -1,0 +1,35 @@
+#include <windows.h>
+#include "../src/version.h"
+
+#pragma code_page(65001)
+
+IDI_ICON1 ICON DISCARDABLE "zhld.ico"
+
+VS_VERSION_INFO VERSIONINFO
+ FILEVERSION HLD_FILE_VERSION
+ PRODUCTVERSION HLD_FILE_VERSION
+ FILEFLAGSMASK 0x3fL
+ FILEFLAGS 0x0L
+ FILEOS 0x40004L
+ FILETYPE 0x1L
+ FILESUBTYPE 0x0L
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "080404B0"
+        BEGIN
+            VALUE "CompanyName", "深圳中瀚蓝盾电源有限公司\0"
+            VALUE "FileDescription", "HLD CAN/CAN-FD 通信分析工具\0"
+            VALUE "FileVersion", HLD_FILE_VERSION_STR "\0"
+            VALUE "InternalName", HLD_APP_NAME "\0"
+            VALUE "OriginalFilename", HLD_APP_NAME ".exe\0"
+            VALUE "ProductName", HLD_APP_NAME "\0"
+            VALUE "ProductVersion", HLD_APP_VERSION "\0"
+            VALUE "LegalCopyright", "Copyright (C) 2025 深圳中瀚蓝盾电源有限公司\0"
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x0804, 1200
+    END
+END

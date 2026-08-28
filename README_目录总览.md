@@ -1,11 +1,20 @@
 # 30.CAN_IAP_tools-main 目录总览
 
-本目录已按上位机、Bootloader、原副边APP工程、辅助打包配置工具、官方SDK、构建日志与发布产物重新归类整理。
+本仓库同时维护单 Bank IAP 和双 Bank IAP 两套独立方案。统一项目入口位于 `Projects`，两者是对等项目，不存在包含关系。
+
+## IAP 项目入口
+
+- `Projects/01.SingleBank_IAP`
+  - 已有产品使用的单 Bank IAP 项目入口。
+  - 为兼容旧工程，Bootloader、APP、上位机及发布产物继续保留原路径。
+- `Projects/02.DualBank_IAP`
+  - 独立的双 Bank 在线升级、回滚、Bank 管理及开发板验证项目。
+  - 包含自己的固件、上位机、协议文档、可烧录成品和测试包。
 
 ## 主要目录分类
 
 ### 1. 上位机工具 (Host Tools)
-- `34.HLD_CANFDToolPro`
+- `12.HLD_CANFDToolPro`
   - **最新主上位机工程**（C++ / Qt 6）。
   - **已集成完整 IAP 在线升级功能**（包含二进制/HEX解析、CRC32校验、断点续传、跨机/转发升级），**正式替代了旧版 `11.iap_tools` 及旧 CAN 上位机**。
 - `CAN_TOOLS_NET8.0`

@@ -1,0 +1,12 @@
+# Local IDE state and reproducible build logs
+**/*.uvguix.*
+**/JLinkLog.txt
+**/*.log
+**/*.backup
+**/*_backup
+**/*.quickfix_backup
+**/*.orig
+**/JLinkSettings.ini
+
+# Temporary packaging workspace
+tmp/

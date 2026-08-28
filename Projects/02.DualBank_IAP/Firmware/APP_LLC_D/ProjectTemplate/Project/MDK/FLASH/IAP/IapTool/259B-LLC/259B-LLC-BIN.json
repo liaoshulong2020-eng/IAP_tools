@@ -1,0 +1,11 @@
+{
+  "baudrate": 115200,
+  "modbusAddr": 2,
+  "appFile": "259B-LLC/259B_LLC_V_1_2_0_20260820_iap_release.bin",
+  "flashBaseAddr": 134217728,
+  "flashMaxSize": 262144,
+  "appBaseAddr": 134250496,
+  "appMaxSize": 229376,
+  "argBaseAddr": 134246400,
+  "readWriteSize": 128
+}

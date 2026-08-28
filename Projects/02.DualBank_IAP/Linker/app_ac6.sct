@@ -1,0 +1,11 @@
+#! armclang -E --target=arm-arm-none-eabi -mcpu=cortex-m3 -xc
+#define ROM_BASE 0x08008000
+#define ROM_SIZE 0x00016000
+#define RAM_BASE 0x20000000
+#define RAM_SIZE 0x00010000
+#define STACK_SIZE 0x400
+LR_ROM ROM_BASE ROM_SIZE {
+  ER_ROM ROM_BASE ROM_SIZE { *.o (RESET, +First) *(InRoot$$Sections) .ANY (+RO +XO) }
+  RW_RAM RAM_BASE (RAM_SIZE-STACK_SIZE) { .ANY (+RW +ZI) }
+  ARM_LIB_STACK (RAM_BASE+RAM_SIZE) EMPTY -STACK_SIZE { }
+}

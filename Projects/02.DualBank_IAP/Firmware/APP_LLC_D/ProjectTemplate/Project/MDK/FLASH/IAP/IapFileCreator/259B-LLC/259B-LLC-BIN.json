@@ -1,0 +1,9 @@
+{
+  "bootFile": "259B-LLC/BootLoader-5800.bin",
+  "appFile": "259B-LLC/259B_LLC_V_1_2_0_20260820_iap_release.bin",
+  "outFile": "259B-LLC/259B_LLC_V_1_2_0_20260820_jlink_release.bin",
+  "bootMaxSize": 32768,
+  "argBaseAddr": 28672,
+  "appBaseAddr": 32768,
+  "appMaxSize": 229376
+}
