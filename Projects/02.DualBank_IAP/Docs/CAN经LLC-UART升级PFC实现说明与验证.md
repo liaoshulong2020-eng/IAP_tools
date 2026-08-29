@@ -15,7 +15,8 @@ Pro上位机
 
 ## 可靠性实现
 
-- LLC APP只有在确认收到目标地址`1`的IAP头后才发送PFC进入命令，并给UART DMA留出发送时间后复位。
+- LLC APP只有在确认收到目标地址`1`的IAP头后才启动PFC进入握手。新协议使用`PREPARE(0xAB) → READY(0xBA) → RESET(0x5A) → READY(0xBA)`，每一步校验24位CAN/IAP ID、事务序号、CRC8、帧头和帧尾，最多重试3次。
+- 新握手失败时才发送三次旧`0xFF`帧，兼容已有PFC产品；新PFC不会仅凭`0x5A`复位，必须先收到相同ID和序号的`0xAB`。
 - PFC Bootloader上电后保留15秒网关连接窗口；收到`cmd=1`后进入IAP保持状态。
 - LLC Bootloader使用TMR8产生的真实1ms时基，不再用主循环次数推算UART超时。
 - 网关采用Stop-and-Wait，同一时间最多一个PFC请求在途。
@@ -28,6 +29,26 @@ Pro上位机
 - LLC网关空闲60秒后自动退出，避免永久停留在Bootloader。
 
 ## 协议扩展
+
+### APP进入Bootloader握手
+
+LLC请求帧固定8字节：
+
+```text
+AA | CMD | ID_L | ID_M | ID_H | SEQ | CRC8 | 55
+```
+
+PFC应答帧固定8字节：
+
+```text
+55 | CMD | ID_L | ID_M | ID_H | SEQ | CRC8 | AA
+```
+
+`ID`取触发升级的LLC CAN/IAP ID低24位，当前`0xA0000～0xA0007`、`0xB0001～0xB0008`和救援地址`0xAA55`均可表示。CRC8覆盖`CMD、ID_L、ID_M、ID_H、SEQ`，初值`0x00`，多项式`0x07`。命令定义为：`0xAB=PREPARE`、`0xBA=READY`、`0x5A=RESET`、`0xA5=REJECT`、`0xFF=旧协议进入`。
+
+PFC把第一次合法`PREPARE`中的ID和SEQ锁定为当前事务；后续`RESET`必须完全一致。应答DMA真正发送完成后PFC才复位，避免ACK尚未出线就中断。
+
+### Bootloader能力查询
 
 新增`cmd=0x30`能力查询。应答payload为18字节：
 
@@ -66,7 +87,7 @@ PFC Bootloader 已就绪：协议 1.0，能力=...，路径=CAN→LLC→UART→P
 | LLC Bootloader | Keil AC6，0错误、0警告 |
 | PFC Bootloader | Keil AC6，0错误、0警告 |
 | LLC APP量产版 | Keil AC6，0错误；原工程历史警告58个 |
-| PFC APP | Keil AC6，0错误、0警告 |
+| PFC APP | Keil AC6，0错误；原工程历史警告7个 |
 | Pro上位机 | Qt 6.8.3 / MinGW Release构建通过 |
 | IAP配置测试 | 通过 |
 | PFC网关协议分片/CRC测试 | 通过 |

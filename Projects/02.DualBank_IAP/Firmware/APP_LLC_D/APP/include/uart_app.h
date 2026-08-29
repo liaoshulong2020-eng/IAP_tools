@@ -12,5 +12,6 @@ void User_Uart_TxCpltCallback(void);
 void User_Uart_RxCpltCallback(void);
 void uart_receive_data(void);
 void uart_send_u8data(uint8_t *buf);
+bool uart_enter_pfc_iap(uint32_t device_id);
 
 #endif

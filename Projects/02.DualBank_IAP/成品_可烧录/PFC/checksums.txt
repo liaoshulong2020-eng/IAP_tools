@@ -1,6 +1,6 @@
 target=PFC
 boot_size=22760
-app_size=27780
-app_crc=0x05E400B8
-bank_image_size=60672
-bank_crc=0xC2E9B0DD
+app_size=28164
+app_crc=0x8F2DAE16
+bank_image_size=61056
+bank_crc=0x29405B60

@@ -1,6 +1,6 @@
 target=LLC
 boot_size=26208
-app_size=39012
-app_crc=0xC65DD3FD
-bank_image_size=71808
-bank_crc=0x69E10BE5
+app_size=40852
+app_crc=0xE7750886
+bank_image_size=73728
+bank_crc=0xB61E3278

@@ -13,149 +13,153 @@ void User_Uart_RxCpltCallback(void);
 #define USER_UART										UART0
 
 
-// ================= ÀàĞÍ¶¨Òå =================
+// ================= ç±»å‹å®šä¹‰ =================
 
 /**
- * @brief Float/uint32_t ÁªºÏÌå,ÓÃÓÚÊı¾İ´ò°ü
- * @note Ö§³Ö¸¡µãÊıÓë×Ö½ÚÊı×éÖ®¼äµÄ×ª»»
+ * @brief Float/uint32_t è”åˆä½“,ç”¨äºæ•°æ®æ‰“åŒ…
+ * @note æ”¯æŒæµ®ç‚¹æ•°ä¸å­—èŠ‚æ•°ç»„ä¹‹é—´çš„è½¬æ¢
  */
 typedef union {
-    float f;          // ¸¡µãÊı·ÃÎÊ
-    uint32_t u32;     // 32Î»ÕûÊı·ÃÎÊ
-    uint8_t b[4];     // ×Ö½ÚÊı×é·ÃÎÊ£¨ÓÃÓÚÍ¨ĞÅ£©
+    float f;          // æµ®ç‚¹æ•°è®¿é—®
+    uint32_t u32;     // 32ä½æ•´æ•°è®¿é—®
+    uint8_t b[4];     // å­—èŠ‚æ•°ç»„è®¿é—®ï¼ˆç”¨äºé€šä¿¡ï¼‰
 } float_union_t;
 
 /**
- * @brief ×´Ì¬±êÖ¾Î»ÁªºÏÌå (16Î»)
- * @note Ê¹ÓÃÎ»Óò½ÚÊ¡¿Õ¼ä£¬¿ÉÍ¨¹ı .all ÕûÌå·ÃÎÊ»ò .bits °´Î»·ÃÎÊ
+ * @brief çŠ¶æ€æ ‡å¿—ä½è”åˆä½“ (16ä½)
+ * @note ä½¿ç”¨ä½åŸŸèŠ‚çœç©ºé—´ï¼Œå¯é€šè¿‡ .all æ•´ä½“è®¿é—®æˆ– .bits æŒ‰ä½è®¿é—®
  */
 typedef union {
-    uint16_t all;     // ÕûÌå·ÃÎÊ£¨ÓÃÓÚÇåÁã»òÍ¨ĞÅ´«Êä£©
+    uint16_t all;     // æ•´ä½“è®¿é—®ï¼ˆç”¨äºæ¸…é›¶æˆ–é€šä¿¡ä¼ è¾“ï¼‰
     struct {
-        uint16_t input_ok           : 1;  // Bit 0:  ÊäÈëµçÑ¹Õı³£
-        uint16_t input_under_v      : 1;  // Bit 1:  ÊäÈëÇ·Ñ¹
-        uint16_t input_over_v       : 1;  // Bit 2:  ÊäÈë¹ıÑ¹
-        uint16_t output_under_v     : 1;  // Bit 3:  Êä³öÇ·Ñ¹
-        uint16_t output_over_v      : 1;  // Bit 4:  Êä³ö¹ıÑ¹
-        uint16_t output_over_i      : 1;  // Bit 5:  Êä³ö¹ıÁ÷
-        uint16_t pfc_normal         : 1;  // Bit 6:  PFCÕı³£ÔËĞĞ
-        uint16_t pre_finish         : 1;  // Bit 7:  Ô¤³äµçÍê³É
-        uint16_t start_delay        : 1;  // Bit 8:  Æô¶¯ÑÓÊ±ÖĞ
-        uint16_t current_calib      : 1;  // Bit 9:  µçÁ÷Ğ£×¼Íê³É
-        uint16_t protect_set        : 1;  // Bit 10: ±£»¤ÉèÖÃÍê³É
-        uint16_t input_mode_dc      : 1;  // Bit 11: DCÊäÈëÄ£Ê½
-        uint16_t reserved           : 4;  // Bit 12-15: ±£ÁôÎ»
+        uint16_t input_ok           : 1;  // Bit 0:  è¾“å…¥ç”µå‹æ­£å¸¸
+        uint16_t input_under_v      : 1;  // Bit 1:  è¾“å…¥æ¬ å‹
+        uint16_t input_over_v       : 1;  // Bit 2:  è¾“å…¥è¿‡å‹
+        uint16_t output_under_v     : 1;  // Bit 3:  è¾“å‡ºæ¬ å‹
+        uint16_t output_over_v      : 1;  // Bit 4:  è¾“å‡ºè¿‡å‹
+        uint16_t output_over_i      : 1;  // Bit 5:  è¾“å‡ºè¿‡æµ
+        uint16_t pfc_normal         : 1;  // Bit 6:  PFCæ­£å¸¸è¿è¡Œ
+        uint16_t pre_finish         : 1;  // Bit 7:  é¢„å……ç”µå®Œæˆ
+        uint16_t start_delay        : 1;  // Bit 8:  å¯åŠ¨å»¶æ—¶ä¸­
+        uint16_t current_calib      : 1;  // Bit 9:  ç”µæµæ ¡å‡†å®Œæˆ
+        uint16_t protect_set        : 1;  // Bit 10: ä¿æŠ¤è®¾ç½®å®Œæˆ
+        uint16_t input_mode_dc      : 1;  // Bit 11: DCè¾“å…¥æ¨¡å¼
+        uint16_t reserved           : 4;  // Bit 12-15: ä¿ç•™ä½
     } bits;
 } status_flags_union_t;
 
-// ================= PFC Í¨ĞÅĞ­Òé¶¨Òå =================
+// ================= PFC é€šä¿¡åè®®å®šä¹‰ =================
 
-// PFC ·¢ËÍÖ¡Ğ­Òé
-#define COMM_FRAME_HEADER_BYTE    0x55    // Ö¡Í·±êÊ¶
-#define COMM_FRAME_TAIL_BYTE      0xAA    // Ö¡Î²±êÊ¶
-#define COMM_CMD_PFC_DETAIL_INFO  0x02    // ÃüÁî×Ö£ºÏêÏ¸ĞÅÏ¢ÉÏ±¨
+// PFC å‘é€å¸§åè®®
+#define COMM_FRAME_HEADER_BYTE    0x55    // å¸§å¤´æ ‡è¯†
+#define COMM_FRAME_TAIL_BYTE      0xAA    // å¸§å°¾æ ‡è¯†
+#define COMM_CMD_PFC_DETAIL_INFO  0x02    // å‘½ä»¤å­—ï¼šè¯¦ç»†ä¿¡æ¯ä¸ŠæŠ¥
 
-// LLC ½ÓÊÕÖ¡Ğ­Òé
-#define LLC_FRAME_HEADER          0xAA    // Ö¡Í·±êÊ¶
-#define LLC_FRAME_TAIL            0x55    // Ö¡Î²±êÊ¶
-#define LLC_FRAME_LENGTH          8       // ¹Ì¶¨Ö¡³¤¶È
-#define CMD_LLC_VBUS_TARGET       0x11    // ÃüÁî×Ö£ºÄ¿±ê×ÜÏßµçÑ¹
-#define CMD_LLC_ENTER_IAP         0xFF    // ÃüÁî×Ö£º½øÈëIAP
+// LLC æ¥æ”¶å¸§åè®®
+#define LLC_FRAME_HEADER          0xAA    // å¸§å¤´æ ‡è¯†
+#define LLC_FRAME_TAIL            0x55    // å¸§å°¾æ ‡è¯†
+#define LLC_FRAME_LENGTH          8       // å›ºå®šå¸§é•¿åº¦
+#define CMD_LLC_VBUS_TARGET       0x11    // å‘½ä»¤å­—ï¼šç›®æ ‡æ€»çº¿ç”µå‹
+#define CMD_LLC_ENTER_IAP         0xFF    // å‘½ä»¤å­—ï¼šè¿›å…¥IAP
+#define CMD_IAP_PREPARE           0xAB    // æ–°åè®®ï¼šå‡†å¤‡è¿›å…¥IAP
+#define CMD_IAP_READY             0xBA    // æ–°åè®®ï¼šç¡®è®¤IDå’Œäº‹åŠ¡åºå·
+#define CMD_IAP_RESET             0x5A    // æ–°åè®®ï¼šç¡®è®¤åå¤ä½
+#define CMD_IAP_REJECT            0xA5    // æ–°åè®®ï¼šIDã€åºå·æˆ–çŠ¶æ€é”™è¯¯
 
-// ================= PFC ÉÏ±¨Êı¾İ½á¹¹Ìå =================
+// ================= PFC ä¸ŠæŠ¥æ•°æ®ç»“æ„ä½“ =================
 
 /**
- * @brief PFCÏêÏ¸ĞÅÏ¢ÉÏ±¨Êı¾İ°ü
+ * @brief PFCè¯¦ç»†ä¿¡æ¯ä¸ŠæŠ¥æ•°æ®åŒ…
  * 
- * @note ?? À©Õ¹ÓÑºÃÉè¼Æ£º
- *       - Ìí¼ÓĞÂ×Ö¶Îºó£¬ÎŞĞèÊÖ¶¯ĞŞ¸ÄÈÎºÎºê¶¨Òå
- *       - ËùÓĞ³¤¶È×Ô¶¯Í¨¹ı sizeof() ¼ÆËã
- *       - ±àÒëÊ±¶ÏÑÔ×Ô¶¯ÑéÖ¤½á¹¹Ìå´óĞ¡
+ * @note ?? æ‰©å±•å‹å¥½è®¾è®¡ï¼š
+ *       - æ·»åŠ æ–°å­—æ®µåï¼Œæ— éœ€æ‰‹åŠ¨ä¿®æ”¹ä»»ä½•å®å®šä¹‰
+ *       - æ‰€æœ‰é•¿åº¦è‡ªåŠ¨é€šè¿‡ sizeof() è®¡ç®—
+ *       - ç¼–è¯‘æ—¶æ–­è¨€è‡ªåŠ¨éªŒè¯ç»“æ„ä½“å¤§å°
  * 
- * @warning ±ØĞëÊ¹ÓÃ __attribute__((packed)) ÒÔ±ÜÃâ±àÒëÆ÷×Ô¶¯¶ÔÆëÌî³ä
+ * @warning å¿…é¡»ä½¿ç”¨ __attribute__((packed)) ä»¥é¿å…ç¼–è¯‘å™¨è‡ªåŠ¨å¯¹é½å¡«å……
  */
 typedef struct {
-    // ===== ÊµÊ±²âÁ¿Öµ (16 bytes) =====
-    float_union_t vbus_target;       ///< Ä¿±ê×ÜÏßµçÑ¹ (V)
-    float_union_t vbus_rel;          ///< Êµ¼Ê×ÜÏßµçÑ¹ (V)
-    float_union_t iloop_rel;         ///< Êµ¼Ê»·Â·µçÁ÷ (A)
-    float_union_t vin_rel;           ///< Êµ¼ÊÊäÈëµçÑ¹ (V)
+    // ===== å®æ—¶æµ‹é‡å€¼ (16 bytes) =====
+    float_union_t vbus_target;       ///< ç›®æ ‡æ€»çº¿ç”µå‹ (V)
+    float_union_t vbus_rel;          ///< å®é™…æ€»çº¿ç”µå‹ (V)
+    float_union_t iloop_rel;         ///< å®é™…ç¯è·¯ç”µæµ (A)
+    float_union_t vin_rel;           ///< å®é™…è¾“å…¥ç”µå‹ (V)
     
-    // ===== Ô­Ê¼²ÉÑùÖµ (2 bytes) =====
-    int16_t r_ntc_raw;               ///< NTCÈÈÃôµç×èADCÔ­Ê¼Öµ
+    // ===== åŸå§‹é‡‡æ ·å€¼ (2 bytes) =====
+    int16_t r_ntc_raw;               ///< NTCçƒ­æ•ç”µé˜»ADCåŸå§‹å€¼
     
-    // ===== ±£»¤ÉèÖÃµã (32 bytes) =====
-    float_union_t vin_on_voltage_set;      ///< ÊäÈëÆô¶¯µçÑ¹ãĞÖµ (V)
-    float_union_t vin_under_voltage_set;   ///< ÊäÈëÇ·Ñ¹±£»¤ãĞÖµ (V)
-    float_union_t vin_over_voltage_set;    ///< ÊäÈë¹ıÑ¹±£»¤ãĞÖµ (V)
-    float_union_t vin_max_voltage_set;     ///< ÊäÈë×î¸ßÔÊĞíµçÑ¹ (V)
-    float_union_t vout_over_voltage_sw;    ///< Êä³ö¹ıÑ¹±£»¤µã-Èí¼ş (V)
-    float_union_t bus_ovp_point_hw;        ///< ×ÜÏß¹ıÑ¹±£»¤µã-Ó²¼ş (V)
-    float_union_t ipfc_ocp_current_sw;     ///< PFC¹ıÁ÷±£»¤µã-Èí¼ş (A)
-    float_union_t pfc_i_ocp_dac_point_hw;  ///< PFC¹ıÁ÷±£»¤µã-Ó²¼şDAC (A)
+    // ===== ä¿æŠ¤è®¾ç½®ç‚¹ (32 bytes) =====
+    float_union_t vin_on_voltage_set;      ///< è¾“å…¥å¯åŠ¨ç”µå‹é˜ˆå€¼ (V)
+    float_union_t vin_under_voltage_set;   ///< è¾“å…¥æ¬ å‹ä¿æŠ¤é˜ˆå€¼ (V)
+    float_union_t vin_over_voltage_set;    ///< è¾“å…¥è¿‡å‹ä¿æŠ¤é˜ˆå€¼ (V)
+    float_union_t vin_max_voltage_set;     ///< è¾“å…¥æœ€é«˜å…è®¸ç”µå‹ (V)
+    float_union_t vout_over_voltage_sw;    ///< è¾“å‡ºè¿‡å‹ä¿æŠ¤ç‚¹-è½¯ä»¶ (V)
+    float_union_t bus_ovp_point_hw;        ///< æ€»çº¿è¿‡å‹ä¿æŠ¤ç‚¹-ç¡¬ä»¶ (V)
+    float_union_t ipfc_ocp_current_sw;     ///< PFCè¿‡æµä¿æŠ¤ç‚¹-è½¯ä»¶ (A)
+    float_union_t pfc_i_ocp_dac_point_hw;  ///< PFCè¿‡æµä¿æŠ¤ç‚¹-ç¡¬ä»¶DAC (A)
     
-    // ===== ¿ØÖÆ×´Ì¬ (6 bytes) =====
-    uint8_t state;                   ///< PFC×´Ì¬»úµ±Ç°×´Ì¬
-    uint8_t switch_frequency;        ///< ¿ª¹ØÆµÂÊ (kHz£¬Êµ¼ÊÆµÂÊ/1000)
-    float_union_t duty_cycle;        ///< PWMÕ¼¿Õ±È (0.0 ~ 1.0)
+    // ===== æ§åˆ¶çŠ¶æ€ (6 bytes) =====
+    uint8_t state;                   ///< PFCçŠ¶æ€æœºå½“å‰çŠ¶æ€
+    uint8_t switch_frequency;        ///< å¼€å…³é¢‘ç‡ (kHzï¼Œå®é™…é¢‘ç‡/1000)
+    float_union_t duty_cycle;        ///< PWMå ç©ºæ¯” (0.0 ~ 1.0)
     
-    // ===== ×´Ì¬±êÖ¾Î» (2 bytes) =====
-    status_flags_union_t status_flags;  ///< ×ÛºÏ×´Ì¬±êÖ¾Î»
+    // ===== çŠ¶æ€æ ‡å¿—ä½ (2 bytes) =====
+    status_flags_union_t status_flags;  ///< ç»¼åˆçŠ¶æ€æ ‡å¿—ä½
     
-    // ===== ?? À©Õ¹ÇøÓò£ºÔÚ´ËÌí¼ÓĞÂ×Ö¶Î¼´¿É£¬ÎŞĞèĞŞ¸ÄÆäËû´úÂë =====
-    // ÀıÈç£º
-    // float_union_t new_voltage;     ///< ĞÂÔöµçÑ¹²ÉÑù
-    // uint16_t new_counter;          ///< ĞÂÔö¼ÆÊıÆ÷
+    // ===== ?? æ‰©å±•åŒºåŸŸï¼šåœ¨æ­¤æ·»åŠ æ–°å­—æ®µå³å¯ï¼Œæ— éœ€ä¿®æ”¹å…¶ä»–ä»£ç  =====
+    // ä¾‹å¦‚ï¼š
+    // float_union_t new_voltage;     ///< æ–°å¢ç”µå‹é‡‡æ ·
+    // uint16_t new_counter;          ///< æ–°å¢è®¡æ•°å™¨
     
 } __attribute__((packed)) PFC_REPORT_DATA_TypeDef;
 
-// ================= ?? ×Ô¶¯¼ÆËãµÄºê¶¨Òå£¨ÎŞĞèÊÖ¶¯ĞŞ¸Ä£©=================
+// ================= ?? è‡ªåŠ¨è®¡ç®—çš„å®å®šä¹‰ï¼ˆæ— éœ€æ‰‹åŠ¨ä¿®æ”¹ï¼‰=================
 
 /**
- * @brief Êı¾İÌå³¤¶È - ×Ô¶¯´Ó½á¹¹Ìå´óĞ¡¼ÆËã
- * @note Ìí¼ÓĞÂ×Ö¶Îºó»á×Ô¶¯¸üĞÂ£¬ÎŞĞèÊÖ¶¯ĞŞ¸Ä
+ * @brief æ•°æ®ä½“é•¿åº¦ - è‡ªåŠ¨ä»ç»“æ„ä½“å¤§å°è®¡ç®—
+ * @note æ·»åŠ æ–°å­—æ®µåä¼šè‡ªåŠ¨æ›´æ–°ï¼Œæ— éœ€æ‰‹åŠ¨ä¿®æ”¹
  */
 #define COMM_FRAME_DATA_SIZE      sizeof(PFC_REPORT_DATA_TypeDef)
 
 /**
- * @brief Ö¡¿ªÏú£¨¹Ì¶¨Öµ£©
- * ×é³É£ºHeader(1) + Cmd(1) + Len(1) + Checksum(1) + Tail(1) = 5 bytes
+ * @brief å¸§å¼€é”€ï¼ˆå›ºå®šå€¼ï¼‰
+ * ç»„æˆï¼šHeader(1) + Cmd(1) + Len(1) + Checksum(1) + Tail(1) = 5 bytes
  */
 #define COMM_FRAME_OVERHEAD       5
 
 /**
- * @brief ÍêÕûÖ¡×Ü³¤¶È - ×Ô¶¯¼ÆËã
- * @note ¹«Ê½£º×Ü³¤¶È = Êı¾İÌå´óĞ¡ + Ö¡¿ªÏú
+ * @brief å®Œæ•´å¸§æ€»é•¿åº¦ - è‡ªåŠ¨è®¡ç®—
+ * @note å…¬å¼ï¼šæ€»é•¿åº¦ = æ•°æ®ä½“å¤§å° + å¸§å¼€é”€
  */
 #define COMM_FRAME_TOTAL_SIZE     (COMM_FRAME_DATA_SIZE + COMM_FRAME_OVERHEAD)
 
 /**
- * @brief Ğ£ÑéºÍ¼ÆËãÆğÊ¼Î»ÖÃ£¨Ïà¶ÔÓÚÖ¡Í·£©
- * @note Ğ£ÑéºÍ·¶Î§£º[Cmd, Len, Data] = ´ÓÆ«ÒÆ1¿ªÊ¼
+ * @brief æ ¡éªŒå’Œè®¡ç®—èµ·å§‹ä½ç½®ï¼ˆç›¸å¯¹äºå¸§å¤´ï¼‰
+ * @note æ ¡éªŒå’ŒèŒƒå›´ï¼š[Cmd, Len, Data] = ä»åç§»1å¼€å§‹
  */
 #define COMM_CHECKSUM_START_OFFSET  1
 
 /**
- * @brief Ğ£ÑéºÍ¼ÆËã³¤¶È - ×Ô¶¯¼ÆËã
- * @note ·¶Î§£ºCmd(1) + Len(1) + Data(×Ô¶¯)
+ * @brief æ ¡éªŒå’Œè®¡ç®—é•¿åº¦ - è‡ªåŠ¨è®¡ç®—
+ * @note èŒƒå›´ï¼šCmd(1) + Len(1) + Data(è‡ªåŠ¨)
  */
 #define COMM_CHECKSUM_LENGTH      (2 + COMM_FRAME_DATA_SIZE)
 
 /**
- * @brief Ğ£ÑéºÍÎ»ÖÃ£¨Ïà¶ÔÓÚÖ¡Í·£©
- * @note Î»ÖÃ£ºHeader(1) + Cmd(1) + Len(1) + Data(×Ô¶¯) = 3 + Êı¾İ´óĞ¡
+ * @brief æ ¡éªŒå’Œä½ç½®ï¼ˆç›¸å¯¹äºå¸§å¤´ï¼‰
+ * @note ä½ç½®ï¼šHeader(1) + Cmd(1) + Len(1) + Data(è‡ªåŠ¨) = 3 + æ•°æ®å¤§å°
  */
 #define COMM_CHECKSUM_OFFSET      (3 + COMM_FRAME_DATA_SIZE)
 
 /**
- * @brief Ö¡Î²Î»ÖÃ£¨Ïà¶ÔÓÚÖ¡Í·£©
+ * @brief å¸§å°¾ä½ç½®ï¼ˆç›¸å¯¹äºå¸§å¤´ï¼‰
  */
 #define COMM_TAIL_OFFSET          (COMM_CHECKSUM_OFFSET + 1)
 
-// ===== ±àÒëÊ±°²È«¼ì²é =====
+// ===== ç¼–è¯‘æ—¶å®‰å…¨æ£€æŸ¥ =====
 
 /**
- * @brief ÑéÖ¤»ù´¡ÀàĞÍ´óĞ¡
+ * @brief éªŒè¯åŸºç¡€ç±»å‹å¤§å°
  */
 _Static_assert(sizeof(float_union_t) == 4,
                "float_union_t size must be 4 bytes");
@@ -164,129 +168,129 @@ _Static_assert(sizeof(status_flags_union_t) == 2,
                "status_flags_union_t size must be 2 bytes");
 
 /**
- * @brief ÑéÖ¤Êı¾İ°ü´óĞ¡ÏŞÖÆ
- * @note ÏŞÖÆÔ­Òò£º³¤¶È×Ö¶ÎÊÇ uint8_t£¬×î´ó 255 ×Ö½Ú
+ * @brief éªŒè¯æ•°æ®åŒ…å¤§å°é™åˆ¶
+ * @note é™åˆ¶åŸå› ï¼šé•¿åº¦å­—æ®µæ˜¯ uint8_tï¼Œæœ€å¤§ 255 å­—èŠ‚
  */
 _Static_assert(COMM_FRAME_DATA_SIZE <= 255,
                "Data size must not exceed 255 bytes (uint8_t limit)");
 
 /**
- * @brief ÑéÖ¤Ö¡×Ü³¤¶ÈºÏÀíĞÔ
- * @note µäĞÍ UART »º³åÇø´óĞ¡£º256-1024 ×Ö½Ú
+ * @brief éªŒè¯å¸§æ€»é•¿åº¦åˆç†æ€§
+ * @note å…¸å‹ UART ç¼“å†²åŒºå¤§å°ï¼š256-1024 å­—èŠ‚
  */
 _Static_assert(COMM_FRAME_TOTAL_SIZE <= 512,
                "Total frame size should not exceed 512 bytes for typical UART buffers");
 
-// ================= Ö¡½á¹¹ÎÄµµºê =================
+// ================= å¸§ç»“æ„æ–‡æ¡£å® =================
 
 /**
- * @brief Ö¡½á¹¹ËµÃ÷£¨ÓÃÓÚµ÷ÊÔÊä³ö£©
+ * @brief å¸§ç»“æ„è¯´æ˜ï¼ˆç”¨äºè°ƒè¯•è¾“å‡ºï¼‰
  * 
- * Ö¡¸ñÊ½£º
+ * å¸§æ ¼å¼ï¼š
  * +--------+-----+-----+----------+----------+------+
  * | Header | Cmd | Len |   Data   | Checksum | Tail |
  * |  0x55  | 0x02| AUTO|   AUTO   |   AUTO   | 0xAA |
  * +--------+-----+-----+----------+----------+------+
  *    1B     1B    1B    sizeof()      1B       1B
  * 
- * AUTO = ×Ô¶¯´Ó sizeof(PFC_REPORT_DATA_TypeDef) ¼ÆËã
+ * AUTO = è‡ªåŠ¨ä» sizeof(PFC_REPORT_DATA_TypeDef) è®¡ç®—
  */
 #define COMM_FRAME_FORMAT_DOC \
     "Frame: [0x55][0x02][LEN][DATA...][CHK][0xAA], " \
     "LEN=" XSTR(COMM_FRAME_DATA_SIZE) ", " \
     "TOTAL=" XSTR(COMM_FRAME_TOTAL_SIZE)
 
-// ¸¨Öúºê£º½«Êı×Ö×ªÎª×Ö·û´®
+// è¾…åŠ©å®ï¼šå°†æ•°å­—è½¬ä¸ºå­—ç¬¦ä¸²
 #define XSTR(x) STR(x)
 #define STR(x) #x
 
-// ================= º¯Êı½Ó¿ÚÉùÃ÷ =================
+// ================= å‡½æ•°æ¥å£å£°æ˜ =================
 
 /**
- * @brief ³õÊ¼»¯LLCÍ¨ĞÅ½Ó¿Ú
- * @note Æô¶¯UART½ÓÊÕÖĞ¶Ï£¬×¼±¸½ÓÊÕLLC·¢ËÍµÄÃüÁîÖ¡
+ * @brief åˆå§‹åŒ–LLCé€šä¿¡æ¥å£
+ * @note å¯åŠ¨UARTæ¥æ”¶ä¸­æ–­ï¼Œå‡†å¤‡æ¥æ”¶LLCå‘é€çš„å‘½ä»¤å¸§
  */
 void llc_comm_init(void);
 
 /**
- * @brief ·¢ËÍPFCÏêÏ¸ĞÅÏ¢µ½LLC
- * @return LL_OK: ·¢ËÍ³É¹¦Æô¶¯, LL_ERROR: ·¢ËÍÊ§°Ü
- * @note ¸Ãº¯Êı»á×Ô¶¯£º
- *       - Ìî³äÈ«¾Ö½á¹¹Ìå pfc_report_data
- *       - ¼ÆËãÊı¾İ³¤¶È£¨×Ô¶¯´Ó sizeof »ñÈ¡£©
- *       - ¼ÆËãĞ£ÑéºÍ
- *       - Í¨¹ı DMA ·¢ËÍÍêÕûÖ¡
- * @note Õë¶Ô Ofast ÓÅ»¯½øĞĞÁËÌØÊâ´¦Àí£¬Ê¹ÓÃ volatile ·ÀÖ¹ÓÅ»¯
+ * @brief å‘é€PFCè¯¦ç»†ä¿¡æ¯åˆ°LLC
+ * @return LL_OK: å‘é€æˆåŠŸå¯åŠ¨, LL_ERROR: å‘é€å¤±è´¥
+ * @note è¯¥å‡½æ•°ä¼šè‡ªåŠ¨ï¼š
+ *       - å¡«å……å…¨å±€ç»“æ„ä½“ pfc_report_data
+ *       - è®¡ç®—æ•°æ®é•¿åº¦ï¼ˆè‡ªåŠ¨ä» sizeof è·å–ï¼‰
+ *       - è®¡ç®—æ ¡éªŒå’Œ
+ *       - é€šè¿‡ DMA å‘é€å®Œæ•´å¸§
+ * @note é’ˆå¯¹ Ofast ä¼˜åŒ–è¿›è¡Œäº†ç‰¹æ®Šå¤„ç†ï¼Œä½¿ç”¨ volatile é˜²æ­¢ä¼˜åŒ–
  */
 LL_StatusETypeDef uart_send_pfc_detail_info(void);
 
 /**
- * @brief ¸ù¾İLLCÖ¸ÁîÉèÖÃ×ÜÏßµçÑ¹Ä¿±êÖµ
- * @note »á¶Ô½ÓÊÕµ½µÄÄ¿±êµçÑ¹½øĞĞ·¶Î§¼ì²é
- * @note Ö»ÓĞÔÚ PFC ÔËĞĞ×´Ì¬ÏÂ²Å»áÁ¢¼´Ó¦ÓÃĞÂµÄÄ¿±êÖµ
+ * @brief æ ¹æ®LLCæŒ‡ä»¤è®¾ç½®æ€»çº¿ç”µå‹ç›®æ ‡å€¼
+ * @note ä¼šå¯¹æ¥æ”¶åˆ°çš„ç›®æ ‡ç”µå‹è¿›è¡ŒèŒƒå›´æ£€æŸ¥
+ * @note åªæœ‰åœ¨ PFC è¿è¡ŒçŠ¶æ€ä¸‹æ‰ä¼šç«‹å³åº”ç”¨æ–°çš„ç›®æ ‡å€¼
  */
 void set_vbus_voltage(void);
 
 /**
- * @brief UART½ÓÊÕÍê³ÉÖĞ¶Ï»Øµ÷º¯Êı
- * @note ÓÉUARTÇı¶¯²ãµ÷ÓÃ£¬ÓÃÓÚ´¦Àí½ÓÊÕµ½µÄLLCÃüÁîÖ¡
+ * @brief UARTæ¥æ”¶å®Œæˆä¸­æ–­å›è°ƒå‡½æ•°
+ * @note ç”±UARTé©±åŠ¨å±‚è°ƒç”¨ï¼Œç”¨äºå¤„ç†æ¥æ”¶åˆ°çš„LLCå‘½ä»¤å¸§
  */
 void User_Uart_RxCpltCallback(void);
 
 /**
- * @brief UART·¢ËÍÍê³ÉÖĞ¶Ï»Øµ÷º¯Êı
- * @note ÓÉUARTÇı¶¯²ãµ÷ÓÃ£¬¿ÉÓÃÓÚ·¢ËÍÍê³ÉºóµÄ´¦Àí£¨µ±Ç°Îª¿ÕÊµÏÖ£©
+ * @brief UARTå‘é€å®Œæˆä¸­æ–­å›è°ƒå‡½æ•°
+ * @note ç”±UARTé©±åŠ¨å±‚è°ƒç”¨ï¼Œå¯ç”¨äºå‘é€å®Œæˆåçš„å¤„ç†ï¼ˆå½“å‰ä¸ºç©ºå®ç°ï¼‰
  */
 void User_Uart_TxCpltCallback(void);
 
-// ================= È«¾Ö±äÁ¿ÉùÃ÷ =================
+// ================= å…¨å±€å˜é‡å£°æ˜ =================
 
 /**
- * @brief PFCÉÏ±¨Êı¾İÈ«¾Ö±äÁ¿
- * @note Ê¹ÓÃ volatile ĞŞÊÎ£¬·ÀÖ¹±àÒëÆ÷ÓÅ»¯
- * @note ¸Ã±äÁ¿»áÔÚ uart_send_pfc_detail_info() ÖĞ±»Ìî³ä
+ * @brief PFCä¸ŠæŠ¥æ•°æ®å…¨å±€å˜é‡
+ * @note ä½¿ç”¨ volatile ä¿®é¥°ï¼Œé˜²æ­¢ç¼–è¯‘å™¨ä¼˜åŒ–
+ * @note è¯¥å˜é‡ä¼šåœ¨ uart_send_pfc_detail_info() ä¸­è¢«å¡«å……
  */
 extern volatile PFC_REPORT_DATA_TypeDef pfc_report_data;
 
 /**
- * @brief LLC·¢ËÍµÄÄ¿±ê×ÜÏßµçÑ¹
- * @note Ê¹ÓÃ volatile ĞŞÊÎ£¬·ÀÖ¹±àÒëÆ÷ÓÅ»¯
- * @note ¸Ã±äÁ¿ÓÉ UART ½ÓÊÕÖĞ¶Ï¸üĞÂ£¬Ö÷Ñ­»·ÖĞ¶ÁÈ¡Ê¹ÓÃ
+ * @brief LLCå‘é€çš„ç›®æ ‡æ€»çº¿ç”µå‹
+ * @note ä½¿ç”¨ volatile ä¿®é¥°ï¼Œé˜²æ­¢ç¼–è¯‘å™¨ä¼˜åŒ–
+ * @note è¯¥å˜é‡ç”± UART æ¥æ”¶ä¸­æ–­æ›´æ–°ï¼Œä¸»å¾ªç¯ä¸­è¯»å–ä½¿ç”¨
  */
 extern volatile float llc_send_vbus_target;
 
-// ================= ?? À©Õ¹Ö¸ÄÏ =================
+// ================= ?? æ‰©å±•æŒ‡å— =================
 
 /**
- * @example ÈçºÎÌí¼ÓĞÂ×Ö¶Îµ½Í¨ĞÅĞ­Òé
+ * @example å¦‚ä½•æ·»åŠ æ–°å­—æ®µåˆ°é€šä¿¡åè®®
  * 
- * ²½Öè1£ºÔÚ PFC_REPORT_DATA_TypeDef ½á¹¹ÌåÄ©Î²Ìí¼ÓĞÂ×Ö¶Î
+ * æ­¥éª¤1ï¼šåœ¨ PFC_REPORT_DATA_TypeDef ç»“æ„ä½“æœ«å°¾æ·»åŠ æ–°å­—æ®µ
  * --------------------------------------------------------------
  * typedef struct {
- *     // ... ÏÖÓĞ×Ö¶Î ...
+ *     // ... ç°æœ‰å­—æ®µ ...
  *     
- *     // ?? ĞÂ×Ö¶Î
- *     float_union_t temperature;    // ĞÂÔöÎÂ¶È
- *     uint16_t error_code;          // ĞÂÔö´íÎóÂë
+ *     // ?? æ–°å­—æ®µ
+ *     float_union_t temperature;    // æ–°å¢æ¸©åº¦
+ *     uint16_t error_code;          // æ–°å¢é”™è¯¯ç 
  *     
  * } __attribute__((packed)) PFC_REPORT_DATA_TypeDef;
  * 
- * ²½Öè2£ºÔÚ uart_send_pfc_detail_info() ÖĞÌî³äĞÂ×Ö¶Î
+ * æ­¥éª¤2ï¼šåœ¨ uart_send_pfc_detail_info() ä¸­å¡«å……æ–°å­—æ®µ
  * --------------------------------------------------------------
  * local_data.temperature.f = get_temperature();
  * local_data.error_code = pfc.error_code;
  * 
- * ²½Öè3£º±àÒë - ÎŞĞèĞŞ¸ÄÈÎºÎÆäËû´úÂë£¡
+ * æ­¥éª¤3ï¼šç¼–è¯‘ - æ— éœ€ä¿®æ”¹ä»»ä½•å…¶ä»–ä»£ç ï¼
  * --------------------------------------------------------------
- * - COMM_FRAME_DATA_SIZE ×Ô¶¯¸üĞÂ
- * - COMM_FRAME_TOTAL_SIZE ×Ô¶¯¸üĞÂ
- * - Ğ£ÑéºÍ¼ÆËã×Ô¶¯ÊÊÅä
- * - Ö¡³¤¶È×Ö¶Î×Ô¶¯Ìî³äÕıÈ·Öµ
+ * - COMM_FRAME_DATA_SIZE è‡ªåŠ¨æ›´æ–°
+ * - COMM_FRAME_TOTAL_SIZE è‡ªåŠ¨æ›´æ–°
+ * - æ ¡éªŒå’Œè®¡ç®—è‡ªåŠ¨é€‚é…
+ * - å¸§é•¿åº¦å­—æ®µè‡ªåŠ¨å¡«å……æ­£ç¡®å€¼
  * 
- * ×¢ÒâÊÂÏî£º
- * - ½¨ÒéĞÂ×Ö¶ÎÌí¼ÓÔÚ½á¹¹ÌåÄ©Î²£¨±£³ÖÏòÏÂ¼æÈİ£©
- * - ×¢ÒâÊı¾İ¶ÔÆë£¨packed Ä£Ê½ÏÂÎŞ×Ô¶¯Ìî³ä£©
- * - ×Ü´óĞ¡²»Òª³¬¹ı 255 ×Ö½Ú£¨uint8_t ³¤¶È×Ö¶ÎÏŞÖÆ£©
+ * æ³¨æ„äº‹é¡¹ï¼š
+ * - å»ºè®®æ–°å­—æ®µæ·»åŠ åœ¨ç»“æ„ä½“æœ«å°¾ï¼ˆä¿æŒå‘ä¸‹å…¼å®¹ï¼‰
+ * - æ³¨æ„æ•°æ®å¯¹é½ï¼ˆpacked æ¨¡å¼ä¸‹æ— è‡ªåŠ¨å¡«å……ï¼‰
+ * - æ€»å¤§å°ä¸è¦è¶…è¿‡ 255 å­—èŠ‚ï¼ˆuint8_t é•¿åº¦å­—æ®µé™åˆ¶ï¼‰
  */
 
 #endif /* PRI_SEC_COMMUN_H */

@@ -16,19 +16,10 @@ uint8_t dev_index ;
 void User_CAN_RxCpltCallback(void);
 
 /* Ask the PFC APP to enter its bootloader before LLC resets into gateway mode. */
-static void enter_pfc_iap_then_reset(void)
+static void enter_pfc_iap_then_reset(uint32_t device_id)
 {
-  uint8_t frame[8] = {0xAA, 0xFF, 0, 0, 0, 0, 0, 0x55};
-  uint8_t crc = 0;
-  int i, bit;
-  for(i = 1; i <= 5; ++i) {
-    crc ^= frame[i];
-    for(bit = 0; bit < 8; ++bit) crc = (crc & 0x80) ? (uint8_t)((crc << 1) ^ 0x07) : (uint8_t)(crc << 1);
-  }
-  frame[6] = crc;
-  uart_send_u8data(frame);
-  /* 8 bytes at 115200 need <1 ms; leave margin for DMA and PFC reset handling. */
-  delay_ms(20);
+  (void)uart_enter_pfc_iap(device_id);
+  delay_ms(10);
   NVIC_SystemReset();
 }
 
@@ -1041,7 +1032,7 @@ void LL_CAN_RxCallback(CAN_TypeDef* Instance)
            (user_can_ctrl.rx_buf[user_can_ctrl.rx_cnt][0] == 2 ||
             user_can_ctrl.rx_buf[user_can_ctrl.rx_cnt][0] == 1) && can_cmd == 0x41)
         {
-            if(user_can_ctrl.rx_buf[user_can_ctrl.rx_cnt][0] == 1) enter_pfc_iap_then_reset();
+            if(user_can_ctrl.rx_buf[user_can_ctrl.rx_cnt][0] == 1) enter_pfc_iap_then_reset(received_id);
             else NVIC_SystemReset();
         }
 
@@ -1060,7 +1051,7 @@ void LL_CAN_RxCallback(CAN_TypeDef* Instance)
                 if((user_can_ctrl.rx_buf[user_can_ctrl.rx_cnt][0] == 2 ||  // LLC: 2, PFC: 1
                     user_can_ctrl.rx_buf[user_can_ctrl.rx_cnt][0] == 1) &&
                    user_can_ctrl.rx_buf[user_can_ctrl.rx_cnt][1] == 0x41) {
-                    if(user_can_ctrl.rx_buf[user_can_ctrl.rx_cnt][0] == 1) enter_pfc_iap_then_reset();
+                    if(user_can_ctrl.rx_buf[user_can_ctrl.rx_cnt][0] == 1) enter_pfc_iap_then_reset(received_id);
                     else NVIC_SystemReset();
                 }
                 break;

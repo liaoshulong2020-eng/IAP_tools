@@ -8,11 +8,15 @@
 #include "dbg/tae_dbg.h"
 
 #if(UART_FUNC)
-// ================= È«¾Ö±äÁ¿ =================
+// ================= å…¨å±€å˜é‡ =================
 
 volatile PFC_REPORT_DATA_TypeDef pfc_report_data;
 volatile float llc_send_vbus_target = 0.0f;
 static uint8_t uart_rx_buf[LLC_FRAME_LENGTH];
+static uint32_t iap_handshake_id;
+static uint8_t iap_handshake_sequence;
+static volatile uint8_t iap_reset_after_tx;
+static uint8_t iap_reply_frame[LLC_FRAME_LENGTH];
 
 
 void user_uart_init()
@@ -36,7 +40,7 @@ void user_uart_init()
 }
 
 
-// ================= Ë½ÓĞº¯Êı:Ğ£ÑéºÍ¼ÆËã =================
+// ================= ç§æœ‰å‡½æ•°:æ ¡éªŒå’Œè®¡ç®— =================
 
 RAMCODE
 static uint8_t calculate_checksum(const uint8_t *data, uint16_t len)
@@ -65,35 +69,49 @@ static uint8_t llc_calculate_crc8(const uint8_t *data, uint16_t len)
     return crc;
 }
 
-// ================= ·¢ËÍÂß¼­ (×Ô¶¯ÊÊÅä°æ±¾) =================
+RAMCODE
+static LL_StatusETypeDef send_iap_reply(uint8_t command, uint32_t id, uint8_t sequence)
+{
+    iap_reply_frame[0] = COMM_FRAME_HEADER_BYTE;
+    iap_reply_frame[1] = command;
+    iap_reply_frame[2] = (uint8_t)id;
+    iap_reply_frame[3] = (uint8_t)(id >> 8);
+    iap_reply_frame[4] = (uint8_t)(id >> 16);
+    iap_reply_frame[5] = sequence;
+    iap_reply_frame[6] = llc_calculate_crc8(&iap_reply_frame[1], 5);
+    iap_reply_frame[7] = COMM_FRAME_TAIL_BYTE;
+    return LL_UART_Transmit_DMA(USER_UART, iap_reply_frame, LLC_FRAME_LENGTH);
+}
+
+// ================= å‘é€é€»è¾‘ (è‡ªåŠ¨é€‚é…ç‰ˆæœ¬) =================
 
 /**
- * @brief ·¢ËÍPFCÏêÏ¸ĞÅÏ¢Ö¡
- * @note ?? ×Ô¶¯ÊÊÅäÉè¼Æ£º
- *       - Ö¡³¤¶È×Ô¶¯´Ó sizeof() ¼ÆËã
- *       - Ğ£ÑéºÍ·¶Î§×Ô¶¯ÊÊÅäÊı¾İ´óĞ¡
- *       - Ìí¼ÓĞÂ×Ö¶ÎºóÎŞĞèĞŞ¸Ä´Ëº¯Êı
+ * @brief å‘é€PFCè¯¦ç»†ä¿¡æ¯å¸§
+ * @note ?? è‡ªåŠ¨é€‚é…è®¾è®¡ï¼š
+ *       - å¸§é•¿åº¦è‡ªåŠ¨ä» sizeof() è®¡ç®—
+ *       - æ ¡éªŒå’ŒèŒƒå›´è‡ªåŠ¨é€‚é…æ•°æ®å¤§å°
+ *       - æ·»åŠ æ–°å­—æ®µåæ— éœ€ä¿®æ”¹æ­¤å‡½æ•°
  */
 RAMCODE
 LL_StatusETypeDef uart_send_pfc_detail_info(void)
 {
-    // Ê¹ÓÃ volatile »º³åÇø£¨¹Ø¼ü£º·ÀÖ¹±àÒëÆ÷ÓÅ»¯£©
-    // »º³åÇø´óĞ¡×Ô¶¯´Óºê¼ÆËã
+    // ä½¿ç”¨ volatile ç¼“å†²åŒºï¼ˆå…³é”®ï¼šé˜²æ­¢ç¼–è¯‘å™¨ä¼˜åŒ–ï¼‰
+    // ç¼“å†²åŒºå¤§å°è‡ªåŠ¨ä»å®è®¡ç®—
     static volatile uint8_t frame_buffer[COMM_FRAME_TOTAL_SIZE];
     PFC_REPORT_DATA_TypeDef local_data;
     
     // ========================================
-    // ²½Öè1: Ìî³ä¾Ö²¿½á¹¹Ìå
+    // æ­¥éª¤1: å¡«å……å±€éƒ¨ç»“æ„ä½“
     // ========================================
     
-    // ÊµÊ±Öµ
+    // å®æ—¶å€¼
     local_data.vbus_target.f = pfc.vbus_target;
     local_data.vbus_rel.f = pfc.vbus_rel;
     local_data.iloop_rel.f = pfc.iloop.rel;
     local_data.vin_rel.f = pfc.vin_rel;
     local_data.r_ntc_raw = r_ntc_samp[0];
     
-    // ±£»¤ÉèÖÃµã
+    // ä¿æŠ¤è®¾ç½®ç‚¹
     local_data.vin_on_voltage_set.f = pfc.vin_on_voltage;
     local_data.vin_under_voltage_set.f = pfc.vin_under_voltage;
     local_data.vin_over_voltage_set.f = pfc.vin_over_voltage;
@@ -103,12 +121,12 @@ LL_StatusETypeDef uart_send_pfc_detail_info(void)
     local_data.ipfc_ocp_current_sw.f = IPFC_OCP_CURRENT;
     local_data.pfc_i_ocp_dac_point_hw.f = PFC_I_OCP_DAC_POINT;
     
-    // ¿ØÖÆ×´Ì¬
+    // æ§åˆ¶çŠ¶æ€
     local_data.state = (uint8_t)pfc.state;
     local_data.switch_frequency = (uint8_t)(PFC_DRIVER_CLK / 1000);
     local_data.duty_cycle.f = pfc.duty;
     
-    // ×´Ì¬±êÖ¾Î»
+    // çŠ¶æ€æ ‡å¿—ä½
     local_data.status_flags.all = 0;
     local_data.status_flags.bits.input_ok       = pfc.is_ac_ok;
     local_data.status_flags.bits.input_under_v  = pfc.under_input_flag;
@@ -123,82 +141,101 @@ LL_StatusETypeDef uart_send_pfc_detail_info(void)
     local_data.status_flags.bits.protect_set    = pfc.set_protect_is_ok;
     local_data.status_flags.bits.input_mode_dc  = (pfc.input_mode == DC_MODE);
     
-    // ?? ĞÂ×Ö¶ÎÌî³äÇøÓò
-    // ÈçÌí¼ÓĞÂ×Ö¶Î£¬ÔÚ´Ë´¦Ìî³ä
-    // ÀıÈç£º
+    // ?? æ–°å­—æ®µå¡«å……åŒºåŸŸ
+    // å¦‚æ·»åŠ æ–°å­—æ®µï¼Œåœ¨æ­¤å¤„å¡«å……
+    // ä¾‹å¦‚ï¼š
     // local_data.temperature.f = get_temperature();
     // local_data.error_code = pfc.error_code;
     
-    // ±£´æµ½È«¾Ö±äÁ¿
+    // ä¿å­˜åˆ°å…¨å±€å˜é‡
     memcpy((void*)&pfc_report_data, &local_data, sizeof(PFC_REPORT_DATA_TypeDef));
     
     // ========================================
-    // ²½Öè2: ¹¹ÔìÖ¡Í·ºÍÔªÊı¾İ
+    // æ­¥éª¤2: æ„é€ å¸§å¤´å’Œå…ƒæ•°æ®
     // ========================================
     
     frame_buffer[0] = COMM_FRAME_HEADER_BYTE;
     frame_buffer[1] = COMM_CMD_PFC_DETAIL_INFO;
     
-    // ?? ¹Ø¼ü£º³¤¶È×Ö¶Î×Ô¶¯Ìî³ä£¨´Ó sizeof ¼ÆËã£©
+    // ?? å…³é”®ï¼šé•¿åº¦å­—æ®µè‡ªåŠ¨å¡«å……ï¼ˆä» sizeof è®¡ç®—ï¼‰
     frame_buffer[2] = (uint8_t)COMM_FRAME_DATA_SIZE;
     
     // ========================================
-    // ²½Öè3: ¸´ÖÆÊı¾İÌå
+    // æ­¥éª¤3: å¤åˆ¶æ•°æ®ä½“
     // ========================================
     
-    // ?? ×Ô¶¯ÊÊÅä£ºÑ­»·´ÎÊıÓÉ COMM_FRAME_DATA_SIZE ¾ö¶¨
+    // ?? è‡ªåŠ¨é€‚é…ï¼šå¾ªç¯æ¬¡æ•°ç”± COMM_FRAME_DATA_SIZE å†³å®š
     const uint8_t *src = (const uint8_t*)&local_data;
     for (uint16_t i = 0; i < COMM_FRAME_DATA_SIZE; i++) {
         frame_buffer[3 + i] = src[i];
     }
     
     // ========================================
-    // ²½Öè4: ¼ÆËã²¢Ğ´ÈëĞ£ÑéºÍ
+    // æ­¥éª¤4: è®¡ç®—å¹¶å†™å…¥æ ¡éªŒå’Œ
     // ========================================
     
-    // ?? ×Ô¶¯ÊÊÅä£ºĞ£ÑéºÍ·¶Î§ÓÉºê×Ô¶¯¼ÆËã
-    // ·¶Î§£ºframe_buffer[1] µ½ frame_buffer[2 + COMM_FRAME_DATA_SIZE]
+    // ?? è‡ªåŠ¨é€‚é…ï¼šæ ¡éªŒå’ŒèŒƒå›´ç”±å®è‡ªåŠ¨è®¡ç®—
+    // èŒƒå›´ï¼šframe_buffer[1] åˆ° frame_buffer[2 + COMM_FRAME_DATA_SIZE]
     uint8_t checksum = 0;
     for (uint16_t i = 0; i < COMM_CHECKSUM_LENGTH; i++) {
         checksum ^= frame_buffer[COMM_CHECKSUM_START_OFFSET + i];
     }
     
-    // ÏÈ×¼±¸Êı¾İ£¬¼õÉÙ volatile ·ÃÎÊ
+    // å…ˆå‡†å¤‡æ•°æ®ï¼Œå‡å°‘ volatile è®¿é—®
     uint8_t tail_checksum = checksum;
     uint8_t tail_byte = COMM_FRAME_TAIL_BYTE;
     
-    // ?? ×Ô¶¯ÊÊÅä£ºÎ»ÖÃÓÉºê¼ÆËã
+    // ?? è‡ªåŠ¨é€‚é…ï¼šä½ç½®ç”±å®è®¡ç®—
     frame_buffer[COMM_CHECKSUM_OFFSET] = tail_checksum;
     frame_buffer[COMM_TAIL_OFFSET] = tail_byte;
     
     // ========================================
-    // ²½Öè5: DMA ´«Êä
+    // æ­¥éª¤5: DMA ä¼ è¾“
     // ========================================
     
-    // ?? ×Ô¶¯ÊÊÅä£º´«Êä³¤¶ÈÓÉºê¼ÆËã
+    // ?? è‡ªåŠ¨é€‚é…ï¼šä¼ è¾“é•¿åº¦ç”±å®è®¡ç®—
     return LL_UART_Transmit_DMA(USER_UART, (uint8_t*)frame_buffer, COMM_FRAME_TOTAL_SIZE);
 }
 
-// ================= ½ÓÊÕÓë½âÎöÂß¼­ =================
+// ================= æ¥æ”¶ä¸è§£æé€»è¾‘ =================
 
 RAMCODE
 static void parse_llc_frame(const uint8_t *frame)
 {
-    // Ö¡¸ñÊ½ÑéÖ¤
+    // å¸§æ ¼å¼éªŒè¯
     if (frame[0] != LLC_FRAME_HEADER || frame[LLC_FRAME_LENGTH - 1] != LLC_FRAME_TAIL) {
         return;
     }
     
-    // CRCĞ£Ñé
+    // CRCæ ¡éªŒ
     uint8_t calc_crc = llc_calculate_crc8(&frame[1], 5);
     if (calc_crc != frame[6]) {
         return;
     }
     
-    // ½âÎöÃüÁî
+    // è§£æå‘½ä»¤
     uint8_t cmd = frame[1];
+    uint32_t id = (uint32_t)frame[2] | ((uint32_t)frame[3] << 8) |
+                  ((uint32_t)frame[4] << 16);
+    uint8_t sequence = frame[5];
     
-    if (cmd == CMD_LLC_ENTER_IAP) {
+    if (cmd == CMD_IAP_PREPARE) {
+        if (id == 0U || sequence == 0U) {
+            (void)send_iap_reply(CMD_IAP_REJECT, id, sequence);
+            return;
+        }
+        iap_handshake_id = id;
+        iap_handshake_sequence = sequence;
+        (void)send_iap_reply(CMD_IAP_READY, id, sequence);
+    } else if (cmd == CMD_IAP_RESET) {
+        if (id != iap_handshake_id || sequence == 0U || sequence != iap_handshake_sequence) {
+            (void)send_iap_reply(CMD_IAP_REJECT, id, sequence);
+            return;
+        }
+        if (send_iap_reply(CMD_IAP_READY, id, sequence) == LL_OK) {
+            iap_reset_after_tx = 1U;
+        }
+    } else if (cmd == CMD_LLC_ENTER_IAP) {
         NVIC_SystemReset();
     } else if (cmd == CMD_LLC_VBUS_TARGET) {
         float_union_t converter;
@@ -210,19 +247,19 @@ static void parse_llc_frame(const uint8_t *frame)
         llc_send_vbus_target = converter.f;
     }
     
-    // ?? ĞÂÃüÁî´¦ÀíÇøÓò
-    // Èç¹ûÌí¼ÓÁËĞÂµÄ LLC ÃüÁî£¬ÔÚ´Ë´¦Ìí¼Ó½âÎö´úÂë
+    // ?? æ–°å‘½ä»¤å¤„ç†åŒºåŸŸ
+    // å¦‚æœæ·»åŠ äº†æ–°çš„ LLC å‘½ä»¤ï¼Œåœ¨æ­¤å¤„æ·»åŠ è§£æä»£ç 
     // else if (cmd == CMD_LLC_NEW_COMMAND) {
-    //     // ´¦ÀíĞÂÃüÁî
+    //     // å¤„ç†æ–°å‘½ä»¤
     // }
 }
 
-// ================= ºËĞÄÒµÎñÂß¼­ =================
+// ================= æ ¸å¿ƒä¸šåŠ¡é€»è¾‘ =================
 
 RAMCODE
 void set_vbus_voltage(void)
 {
-    // ·¶Î§¼ì²é
+    // èŒƒå›´æ£€æŸ¥
     if ((llc_send_vbus_target > VOUT_RECOVER_VOLTAGE) && 
         (llc_send_vbus_target < VOUT_OVER_VOLTAGE)) {
         pfc.vbus_target = llc_send_vbus_target;
@@ -230,13 +267,13 @@ void set_vbus_voltage(void)
         pfc.vbus_target = VOUT_VOLTAGE;
     }
     
-    // ÔËĞĞ×´Ì¬ÏÂÁ¢¼´Ó¦ÓÃ
+    // è¿è¡ŒçŠ¶æ€ä¸‹ç«‹å³åº”ç”¨
     if (pfc.state == State_On) {
         pfc.vbus_ref = pfc.vbus_target;
     }
 }
 
-// ================= ÖĞ¶Ï»Øµ÷ =================
+// ================= ä¸­æ–­å›è°ƒ =================
 
 RAMCODE
 void llc_comm_init(void)
@@ -256,6 +293,10 @@ RAMCODE
 void User_Uart_TxCpltCallback(void)
 {
     DMA->CH[0].REG.CER = 1;
+    if (iap_reset_after_tx) {
+        iap_reset_after_tx = 0U;
+        NVIC_SystemReset();
+    }
 }
 
 

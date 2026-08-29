@@ -9,6 +9,108 @@ void UART_TX_DMA_init(void);
 
 volatile uint8_t uart_rx_buf[PFC_UART_FRAME_LENGTH];
 
+#define PFC_IAP_PREPARE       0xABU
+#define PFC_IAP_READY         0xBAU
+#define PFC_IAP_RESET         0x5AU
+#define PFC_IAP_LEGACY        0xFFU
+#define PFC_IAP_FRAME_HEADER  0xAAU
+#define PFC_IAP_FRAME_TAIL    0x55U
+#define PFC_ACK_FRAME_HEADER  0x55U
+#define PFC_ACK_FRAME_TAIL    0xAAU
+#define PFC_IAP_RETRIES       3U
+
+static uint8_t iap_tx_frame[8];
+static uint8_t iap_ack_frame[8];
+static uint8_t iap_sequence;
+
+static uint8_t uart_crc8(const uint8_t *data, uint16_t len)
+{
+    uint8_t crc = 0;
+    uint16_t i;
+    uint8_t bit;
+    for (i = 0; i < len; ++i) {
+        crc ^= data[i];
+        for (bit = 0; bit < 8; ++bit)
+            crc = (crc & 0x80U) ? (uint8_t)((crc << 1) ^ 0x07U) : (uint8_t)(crc << 1);
+    }
+    return crc;
+}
+
+static void uart_iap_build(uint8_t cmd, uint32_t id, uint8_t sequence)
+{
+    iap_tx_frame[0] = PFC_IAP_FRAME_HEADER;
+    iap_tx_frame[1] = cmd;
+    iap_tx_frame[2] = (uint8_t)id;
+    iap_tx_frame[3] = (uint8_t)(id >> 8);
+    iap_tx_frame[4] = (uint8_t)(id >> 16);
+    iap_tx_frame[5] = sequence;
+    iap_tx_frame[6] = uart_crc8(&iap_tx_frame[1], 5);
+    iap_tx_frame[7] = PFC_IAP_FRAME_TAIL;
+}
+
+static void uart_iap_arm_ack(void)
+{
+    __LL_DMA_Ch_Dis(DMA, DMA_CHANNEL_0);
+    __LL_DMA_TransCpltIntPnd_Clr(DMA, DMA_CHANNEL_0);
+    memset(iap_ack_frame, 0, sizeof(iap_ack_frame));
+    __LL_DMA_DstAddr_Set(DMA, DMA_CHANNEL_0, (uint32_t)iap_ack_frame);
+    __LL_DMA_BlockTransCnt_Set(DMA, DMA_CHANNEL_0, sizeof(iap_ack_frame));
+    __LL_UART_RxFIFO_Reset(USER_UART);
+    __LL_DMA_Ch_En(DMA, DMA_CHANNEL_0);
+}
+
+static bool uart_iap_send_and_wait(uint8_t cmd, uint32_t id, uint8_t sequence)
+{
+    uint16_t wait;
+    uart_iap_arm_ack();
+    uart_iap_build(cmd, id, sequence);
+    for (wait = 0; wait < 10U && __LL_DMA_ChEnSta_Get(DMA, DMA_CHANNEL_1); ++wait) delay_ms(1);
+    if (__LL_DMA_ChEnSta_Get(DMA, DMA_CHANNEL_1)) return false;
+    uart_send_u8data(iap_tx_frame);
+    for (wait = 0; wait < 100U; ++wait) {
+        if (__LL_DMA_IsTransCpltIntPnd(DMA, DMA_CHANNEL_0)) {
+            __LL_DMA_TransCpltIntPnd_Clr(DMA, DMA_CHANNEL_0);
+            return iap_ack_frame[0] == PFC_ACK_FRAME_HEADER &&
+                   iap_ack_frame[1] == PFC_IAP_READY &&
+                   iap_ack_frame[2] == (uint8_t)id &&
+                   iap_ack_frame[3] == (uint8_t)(id >> 8) &&
+                   iap_ack_frame[4] == (uint8_t)(id >> 16) &&
+                   iap_ack_frame[5] == sequence &&
+                   iap_ack_frame[6] == uart_crc8(&iap_ack_frame[1], 5) &&
+                   iap_ack_frame[7] == PFC_ACK_FRAME_TAIL;
+        }
+        delay_ms(1);
+    }
+    return false;
+}
+
+bool uart_enter_pfc_iap(uint32_t device_id)
+{
+    uint8_t retry;
+    uint32_t id = device_id & 0x00FFFFFFUL;
+    uint8_t sequence = (uint8_t)(++iap_sequence ^ (uint8_t)DWT_CYCCNT ^
+                                 (uint8_t)device_id ^ (uint8_t)(device_id >> 8));
+    if (sequence == 0U) sequence = 1U;
+
+    for (retry = 0; retry < PFC_IAP_RETRIES; ++retry) {
+        if (uart_iap_send_and_wait(PFC_IAP_PREPARE, id, sequence)) {
+            for (retry = 0; retry < PFC_IAP_RETRIES; ++retry) {
+                if (uart_iap_send_and_wait(PFC_IAP_RESET, id, sequence)) return true;
+            }
+            break;
+        }
+    }
+
+    /* Compatibility path for PFC products that only understand command 0xFF. */
+    uart_iap_build(PFC_IAP_LEGACY, 0, 0);
+    for (retry = 0; retry < PFC_IAP_RETRIES; ++retry) {
+        while (__LL_DMA_ChEnSta_Get(DMA, DMA_CHANNEL_1)) delay_ms(1);
+        uart_send_u8data(iap_tx_frame);
+        delay_ms(20);
+    }
+    return false;
+}
+
 void user_uart_init(UART_TypeDef *Instance)
 {
     UART_InitTypeDef uart_init;
