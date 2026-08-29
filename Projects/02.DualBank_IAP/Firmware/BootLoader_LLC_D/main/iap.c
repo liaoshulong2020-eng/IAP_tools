@@ -286,6 +286,18 @@ static void cmd_bank_rollback(iap_pkt_t *pkt)
 }
 static void cmd_bank_reset(iap_pkt_t *pkt){(void)pkt;NVIC_SystemReset();}
 
+static void cmd_capability_query(iap_pkt_t *pkt)
+{
+	ulong capabilities=0x0000001FUL,id=iap_runtime_can_id();
+	pkt->data[0]=1;pkt->data[1]=0;
+	pkt->data[2]=(uchar)(MODBUS_MAX_REG_PAYLOAD_SIZE&0xff);
+	pkt->data[3]=(uchar)(MODBUS_MAX_REG_PAYLOAD_SIZE>>8);
+	memmove(pkt->data+4,&capabilities,4);
+	pkt->data[8]=1;pkt->data[9]=1;pkt->data[10]=0;pkt->data[11]=0;
+	memmove(pkt->data+12,&id,4);pkt->data[16]=2;pkt->data[17]=1;
+	pkt->len=18;pkt->size=18;
+}
+
 #if(USE_UART)
 /*
  * ���ͽ���IAPģʽ���������
@@ -376,6 +388,7 @@ void iap_pkt_decode(iap_pkt_t *pkt)
 	case 0x23:cmd_bank_confirm(pkt);break;
 	case 0x24:cmd_bank_rollback(pkt);break;
 	case 0x25:cmd_bank_reset(pkt);break;
+	case 0x30:cmd_capability_query(pkt);break;
 	}
 }
 

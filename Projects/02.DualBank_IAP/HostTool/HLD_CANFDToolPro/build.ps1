@@ -7,9 +7,10 @@ $appDir = Join-Path $projRoot '应用程序'
 $buildDir = Join-Path $env:TEMP 'hld_canfd_dualbank_build'
 $stageDir = Join-Path $buildDir 'deploy'
 
-# Qt 工具链（可用环境变量 HLD_QT_ROOT / HLD_MINGW_ROOT 覆盖）
-$QT_ROOT = if ($env:HLD_QT_ROOT) { $env:HLD_QT_ROOT } else { Join-Path $projRoot '.qt\6.8.3\mingw_64' }
-$MINGW_ROOT = if ($env:HLD_MINGW_ROOT) { $env:HLD_MINGW_ROOT } else { Join-Path $projRoot '.qt\Tools\mingw1310_64' }
+# Qt 工具链（优先使用环境变量，否则复用仓库中单 Bank Pro 工具链）
+$repoQt = [IO.Path]::GetFullPath((Join-Path $srcRoot '..\..\..\..\12.HLD_CANFDToolPro\.qt'))
+$QT_ROOT = if ($env:HLD_QT_ROOT) { $env:HLD_QT_ROOT } else { $repoQt }
+$MINGW_ROOT = if ($env:HLD_MINGW_ROOT) { $env:HLD_MINGW_ROOT } else { Join-Path $repoQt 'Tools\mingw1310_64' }
 
 $QMAKE = Join-Path $QT_ROOT 'bin\qmake.exe'
 $WINDEPLOYQT = Join-Path $QT_ROOT 'bin\windeployqt.exe'
@@ -17,7 +18,8 @@ if (-not (Test-Path -LiteralPath $QMAKE)) { throw "未找到 qmake：$QMAKE" }
 if (-not (Test-Path -LiteralPath $WINDEPLOYQT)) { throw "未找到 windeployqt：$WINDEPLOYQT" }
 
 # 原生工具（qmake/make/windeployqt）对中文路径兼容性差，这里用 ASCII 目录联接规避
-$srcJunction = Join-Path $env:TEMP 'hld_canfd_dualbank_src'
+$junctionKey = [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData([Text.Encoding]::UTF8.GetBytes($srcRoot))).Substring(0, 8)
+$srcJunction = Join-Path $env:TEMP "hld_canfd_gateway_src_$junctionKey"
 if (-not (Test-Path -LiteralPath $srcJunction)) {
     New-Item -ItemType Junction -Path $srcJunction -Target $srcRoot | Out-Null
 }

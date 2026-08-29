@@ -56,3 +56,6 @@ if (Test-Path -LiteralPath $hostDestination) {
 }
 New-Item -ItemType Directory -Force $hostDestination | Out-Null
 Copy-Item (Join-Path $hostSource '*') $hostDestination -Recurse -Force
+Get-ChildItem $out -Recurse -File | Where-Object {$_.Name-ne'SHA256SUMS.txt'} | Get-FileHash -Algorithm SHA256 |
+    ForEach-Object {'{0}  {1}'-f $_.Hash,$_.Path.Substring((Resolve-Path $out).Path.Length+1)} |
+    Set-Content (Join-Path $out 'SHA256SUMS.txt') -Encoding utf8

@@ -1916,6 +1916,12 @@ QWidget *MainWindow::makeIapPage()
     addressLayout->addWidget(newAddress);
     addressLayout->addWidget(setAddress);
     root->addWidget(addressSettings);
+    connect(target, &QComboBox::currentIndexChanged, this, [setAddress, addressSettings](int index) {
+        const bool llcTarget = index == 0;
+        setAddress->setEnabled(llcTarget);
+        addressSettings->setToolTip(llcTarget ? QObject::tr("修改 LLC 对外使用的 IAP CAN ID")
+                                             : QObject::tr("PFC 经 LLC 网关升级，共用 LLC 的 CAN ID，无需单独设置 PFC CAN ID"));
+    });
     auto *bankSettings = new QGroupBox(tr("双 Bank 管理"), page);
     auto *bankLayout = new QHBoxLayout(bankSettings);
     auto *bankHint = new QLabel(tr("查看当前运行 Bank、镜像有效性，并执行校验、切换、确认或回滚。"), bankSettings);
@@ -1928,7 +1934,7 @@ QWidget *MainWindow::makeIapPage()
     auto *progress = new QProgressBar(page);
     progress->setRange(0, 100);
     root->addWidget(progress);
-    auto *hint = new QLabel(tr("DBIAP 为掉电安全双 Bank 整包（可同时升级 Bootloader+APP）；BIN/HEX 继续使用旧产品单 APP 升级。支持任意合法29位扩展帧ID，0xAA55永久作为救援地址；包内地址 LLC=2、PFC=1。"), page);
+    auto *hint = new QLabel(tr("DBIAP 为掉电安全双 Bank 整包（可同时升级 Bootloader+APP）；BIN/HEX 继续使用旧产品单 APP 升级。PFC 路径为 CAN→LLC→UART→PFC，上位机会在写入前确认 PFC Bootloader 已真实应答；包内地址 LLC=2、PFC=1。"), page);
     hint->setWordWrap(true);
     root->addWidget(hint);
     auto *log = new QPlainTextEdit(page);

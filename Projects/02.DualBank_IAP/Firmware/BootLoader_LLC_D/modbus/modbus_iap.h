@@ -1,7 +1,7 @@
 /*
  * modbus_iap.h
  *
- *  Created on: 2024Äê3ÔÂ25ÈÕ
+ *  Created on: 2024å¹´3æœˆ25æ—¥
  *      Author: Liang Jinfeng
  */
 
@@ -11,13 +11,16 @@
 #include "main.h"
 
 /*
- * ³õÊ¼»¯
+ * åˆå§‹åŒ–
  */
 void modbus_iap_init();
 
 /*
- * modbus IAP ÈÎÎñ
+ * modbus IAP ä»»åŠ¡
  */
 void modbus_iap_task();
+
+/* True while LLC is acting as the CAN-to-UART PFC upgrade gateway. */
+bool iap_pfc_forward_active(void);
 
 #endif /* MODBUS_IAP_H */

@@ -6,7 +6,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 
-find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets Svg)
+find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets)
 
 add_executable(HLD_CANFDToolPro
     src/main.cpp
@@ -45,7 +45,7 @@ add_executable(HLD_CANFDToolPro
 )
 
 target_include_directories(HLD_CANFDToolPro PRIVATE src src/inc src/dialogs)
-target_link_libraries(HLD_CANFDToolPro PRIVATE Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Svg)
+target_link_libraries(HLD_CANFDToolPro PRIVATE Qt6::Core Qt6::Gui Qt6::Widgets)
 
 if(WIN32)
     target_compile_definitions(HLD_CANFDToolPro PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX)

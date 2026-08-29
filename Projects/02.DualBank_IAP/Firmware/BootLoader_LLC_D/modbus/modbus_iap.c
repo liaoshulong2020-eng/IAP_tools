@@ -1,15 +1,4 @@
-/*
- * modbus_iap.c - LLC Bootloader IAP通信模块（含PFC透传）
- *
- * LLC通过CAN接收上位机IAP命令：
- * - 如果目标地址是自己(addr=2)，则自己处理IAP
- * - 如果目标地址是PFC(addr=1)，则通过UART0透传给PFC
- *
- *  Created on: 2024年3月25日
- *      Author: Liang Jinfeng
- *  Modified: 2025 - 增加PFC透传支持
- */
-
+/* LLC Bootloader CAN-to-UART PFC IAP gateway. */
 #include "modbus_iap.h"
 #include "iap_runtime.h"
 #include "modbuss.h"
@@ -18,333 +7,137 @@
 #include "iap.h"
 #include "cans_modbus.h"
 #include "crc16.h"
+#include "sys_mgr.h"
 
-/*******************************************************************************
- * 静态变量
- ******************************************************************************/
+#define PFC_RESPONSE_TIMEOUT_MS 3500UL
+#define PFC_RESET_TIMEOUT_MS 12000UL
+#define PFC_GATEWAY_IDLE_MS 60000UL
+#define IAP_PACKET_OVERHEAD 14U
 
-static ulong time_cnt;
-
-//空闲计数器
-static ushort idle_cnt;
-
-//PFC透传模式标志
+typedef enum { PFC_GW_IDLE=0, PFC_GW_WAIT_ACK, PFC_GW_WAIT_RESET } pfc_gateway_state_t;
 static bool pfc_forward_mode;
+static pfc_gateway_state_t pfc_state;
+static ulong pfc_state_started,pfc_last_activity;
+static uchar pfc_rx[sizeof(modbus_iap_t)];
+static ushort pfc_rx_size,pfc_rx_expected;
+static uchar pending_request[sizeof(modbus_iap_t)];
+static ushort pending_request_size,pending_command;
+static uchar cached_request[sizeof(modbus_iap_t)],cached_ack[sizeof(modbus_iap_t)];
+static ushort cached_request_size,cached_ack_size;
 
-//PFC透传接收缓冲区
-static uchar pfc_recv_buff[sizeof(modbus_pkt_t)];
-static ushort pfc_recv_size;
-static uchar pfc_recv_state;
+static bool packet_equal(const uchar *a,ushort as,const uchar *b,ushort bs)
+{ return as==bs && as>0 && memcmp(a,b,as)==0; }
 
-//PFC透传超时计数器
-static ushort pfc_timeout_cnt;
-#define PFC_FORWARD_TIMEOUT		5000  //透传超时（约5秒）
+static void pfc_parser_reset(void){pfc_rx_size=0;pfc_rx_expected=0;}
 
-//PFC进入IAP请求计数器
-static ulong pfc_enter_iap_cnt;
-static bool pfc_entered_iap;
-
-/*******************************************************************************
- * 静态函数
- ******************************************************************************/
-
-/*
- * 通过UART0发送数据给PFC
- */
-static void uart0_forward_to_pfc(const void *buff, ushort size)
+static bool packet_crc_valid(const uchar *data,ushort size)
 {
-	uart0_send_data(buff, size);
+	ushort expected,actual=0;
+	if(size<IAP_PACKET_OVERHEAD)return false;
+	expected=(ushort)data[size-2]|((ushort)data[size-1]<<8);
+	crc16_update(&actual,data,size-2);
+	return expected==actual;
 }
 
-/*
- * 向PFC发送进入IAP命令（使用8字节LLC帧格式）
- * 帧格式: [0xAA][0xFF][0x00][0x00][0x00][0x00][CRC8][0x55]
- * PFC APP会识别cmd=0xFF并执行NVIC_SystemReset()
- */
-static void send_pfc_enter_iap()
+static ushort build_packet(const modbus_iap_t *pkt,uchar *out)
 {
-	uchar frame[8];
-	uchar crc;
-
-	frame[0]=0xAA;  //帧头（LLC帧格式）
-	frame[1]=0xFF;  //命令：进入IAP
-	frame[2]=0x00;
-	frame[3]=0x00;
-	frame[4]=0x00;
-	frame[5]=0x00;
-
-	//计算CRC8（对frame[1]~frame[5]共5字节）
-	crc=0;
-	for(int i=1;i<=5;i++)
-	{
-		crc^=frame[i];
-		for(int j=0;j<8;j++)
-		{
-			if(crc&0x80) crc=(crc<<1)^0x07;
-			else crc=crc<<1;
-		}
-	}
-	frame[6]=crc;
-	frame[7]=0x55;  //帧尾
-
-	uart0_forward_to_pfc(frame, 8);
+	ushort crc=0,size;
+	if(pkt->size>MODBUS_MAX_REG_PAYLOAD_SIZE)return 0;
+	out[0]=pkt->addr;out[1]=pkt->fno;
+	memmove(out+2,pkt->cmd,8);memmove(out+10,&pkt->size,2);
+	memmove(out+12,pkt->data,pkt->size);size=(ushort)(12+pkt->size);
+	crc16_update(&crc,out,size);out[size++]=(uchar)crc;out[size++]=(uchar)(crc>>8);
+	return size;
 }
 
-/*
- * 处理从PFC收到的UART0数据（透传模式下的ACK）
- * 将PFC的回复转发回CAN给上位机
- */
-static void pfc_recv_byte(uchar byte)
+static void gateway_close(void)
 {
-	modbus_iap_t *pkt;
-
-	pfc_timeout_cnt=0; //收到数据，重置超时
-
-	if(pfc_recv_state==0)
-	{
-		//等待地址字节
-		if(byte==MODBUS_PFC_ADDR)
-		{
-			pfc_recv_buff[0]=byte;
-			pfc_recv_size=1;
-			pfc_recv_state=1;
-		}
-		return;
-	}
-
-	pfc_recv_buff[pfc_recv_size++]=byte;
-
-	if(pfc_recv_state==1)
-	{
-		//等待功能码
-		if(pfc_recv_size>=2)
-		{
-			if(pfc_recv_buff[1]==FNO_IAP)
-			{
-				pfc_recv_state=2;
-			}
-			else
-			{
-				//不是IAP包，重置
-				pfc_recv_size=0;
-				pfc_recv_state=0;
-			}
-		}
-		return;
-	}
-
-	if(pfc_recv_state==2)
-	{
-		//等待IAP包完整（至少14字节头+CRC）
-		if(pfc_recv_size>12)
-		{
-			pkt=(modbus_iap_t*)pfc_recv_buff;
-			//检查是否接收完整
-			if(pfc_recv_size>=pkt->size+14)
-			{
-				pfc_recv_state=3; //接收完成
-			}
-		}
-		return;
-	}
+	pfc_forward_mode=false;pfc_state=PFC_GW_IDLE;
+	pending_request_size=0;pending_command=0;
+	cached_request_size=0;cached_ack_size=0;pfc_parser_reset();
 }
 
-/*
- * 处理PFC透传完成的数据包
- * 验证CRC后通过CAN转发回上位机
- */
-static void pfc_forward_ack()
+static void forward_pfc_ack(void)
 {
-	ushort crc0, crc=0;
-	modbus_iap_t *pkt;
-
-	if(pfc_recv_state!=3)return;
-
-	//CRC校验
-	crc0=((ushort)pfc_recv_buff[pfc_recv_size-1]<<8)+pfc_recv_buff[pfc_recv_size-2];
-	crc16_update(&crc, pfc_recv_buff, pfc_recv_size-2);
-
-	if(crc0==crc)
-	{
-		pkt=(modbus_iap_t*)pfc_recv_buff;
-
-		//检查是否是进入IAP的ACK
-		if(pkt->cmd[0]==1 && pkt->cmd[1]==0)
-		{
-			pfc_entered_iap=true;
-		}
-
-		//通过CAN转发PFC的ACK给上位机
-		//注意：保持PFC的地址，上位机通过地址区分是LLC还是PFC的回复
-		cansmb_send_data(pfc_recv_buff, pfc_recv_size);
-	}
-
-	//重置接收状态
-	pfc_recv_size=0;
-	pfc_recv_state=0;
+	modbus_iap_t *ack;ushort ack_cmd;
+	if(!packet_crc_valid(pfc_rx,pfc_rx_size)){pfc_parser_reset();return;}
+	ack=(modbus_iap_t*)pfc_rx;
+	ack_cmd=(ushort)ack->cmd[0]|((ushort)ack->cmd[1]<<8);
+	if(ack->addr!=MODBUS_PFC_ADDR || ack->fno!=FNO_IAP ||
+	   pfc_state!=PFC_GW_WAIT_ACK || ack_cmd!=pending_command)
+	{pfc_parser_reset();return;}
+	memmove(cached_request,pending_request,pending_request_size);
+	cached_request_size=pending_request_size;
+	memmove(cached_ack,pfc_rx,pfc_rx_size);cached_ack_size=pfc_rx_size;
+	cansmb_send_data(cached_ack,cached_ack_size);pfc_last_activity=sys_millis();
+	pending_request_size=0;
+	if(ack_cmd==0)gateway_close();
+	else if(ack_cmd==8 || ack_cmd==0x22 || ack_cmd==0x24)
+	{pfc_state=PFC_GW_WAIT_RESET;pfc_state_started=sys_millis();}
+	else pfc_state=PFC_GW_IDLE;
+	pfc_parser_reset();
 }
 
-/*
- * LLC自己的IAP命令处理
- * master:	|addr|fno|cmd|size|data|crc|
- * slave:	|addr|fno|cmd|size|data|crc|
- */
+static void pfc_receive_byte(uchar byte)
+{
+	ushort payload;
+	if(pfc_rx_size==0 && byte!=MODBUS_PFC_ADDR)return;
+	if(pfc_rx_size>=sizeof(pfc_rx)){pfc_parser_reset();return;}
+	pfc_rx[pfc_rx_size++]=byte;
+	if(pfc_rx_size==2 && pfc_rx[1]!=FNO_IAP){pfc_parser_reset();return;}
+	if(pfc_rx_size==12)
+	{
+		payload=(ushort)pfc_rx[10]|((ushort)pfc_rx[11]<<8);
+		if(payload>MODBUS_MAX_REG_PAYLOAD_SIZE){pfc_parser_reset();return;}
+		pfc_rx_expected=(ushort)(payload+IAP_PACKET_OVERHEAD);
+	}
+	if(pfc_rx_expected && pfc_rx_size==pfc_rx_expected)forward_pfc_ack();
+}
+
 static void on_iap_cmd(modbus_iap_t *pkt)
 {
-	idle_cnt=0;
-
-	//判断目标地址：如果是PFC地址，则透传
-	if(pkt->addr==MODBUS_PFC_ADDR)
+	uchar request[sizeof(modbus_iap_t)];ushort request_size,command;
+	if(pkt->addr!=MODBUS_PFC_ADDR)
 	{
-		//进入PFC透传模式
-		pfc_forward_mode=true;
-		pfc_timeout_cnt=0;
-		pfc_recv_size=0;
-		pfc_recv_state=0;
-
-		//如果PFC还没进入bootloader，先不转发，等PFC准备好
-		if(!pfc_entered_iap)
-		{
-			//发送8字节帧让PFC APP复位
-			send_pfc_enter_iap();
-			//暂时不回复ACK，上位机会重试
-			pkt->cmd[0]=0xff;
-			pkt->cmd[1]=0xff;
-			return;
-		}
-
-		//PFC已进入bootloader，将完整的Modbus包通过UART0转发给PFC
-		{
-			uchar fwd_buff[sizeof(modbus_pkt_t)];
-			ushort fwd_size;
-			ushort crc=0;
-
-			fwd_buff[0]=pkt->addr;
-			fwd_buff[1]=pkt->fno;
-			memmove(&fwd_buff[2], pkt->cmd, 8);    //cmd[8]
-			memmove(&fwd_buff[10], &pkt->size, 2); //size
-			memmove(&fwd_buff[12], pkt->data, pkt->size); //data
-
-			fwd_size=12+pkt->size;
-			crc16_update(&crc, fwd_buff, fwd_size);
-			fwd_buff[fwd_size]=(uchar)(crc&0xff);
-			fwd_buff[fwd_size+1]=(uchar)(crc>>8);
-			fwd_size+=2;
-
-			uart0_forward_to_pfc(fwd_buff, fwd_size);
-		}
-
-		//不回复ACK给上位机，等PFC回复后再转发
-		pkt->cmd[0]=0xff;
-		pkt->cmd[1]=0xff;
+		iap_pkt_decode((iap_pkt_t*)pkt->cmd);
+		if(pkt->cmd[0]!=0xff || pkt->cmd[1]!=0xff)
+			modbuss_send_iap(pkt->cmd,(const void*)pkt->data,pkt->size);
 		return;
 	}
-
-	//LLC自己的IAP处理
-	iap_pkt_decode((iap_pkt_t*)pkt->cmd);
-	//判断是否需要发送ACK
-	if(pkt->cmd[0]==0xff&&pkt->cmd[1]==0xff)return;
-	modbuss_send_iap(pkt->cmd,(const void*)pkt->data,pkt->size);
+	request_size=build_packet(pkt,request);if(request_size==0)return;
+	command=(ushort)pkt->cmd[0]|((ushort)pkt->cmd[1]<<8);
+	pfc_forward_mode=true;pfc_last_activity=sys_millis();
+	if(packet_equal(request,request_size,cached_request,cached_request_size))
+	{cansmb_send_data(cached_ack,cached_ack_size);return;}
+	if(pfc_state==PFC_GW_WAIT_ACK)return;
+	memmove(pending_request,request,request_size);pending_request_size=request_size;
+	pending_command=command;pfc_parser_reset();
+	uart0_send_data(pending_request,pending_request_size);
+	pfc_state=PFC_GW_WAIT_ACK;pfc_state_started=sys_millis();
 }
 
-/*******************************************************************************
- * 接口函数
- ******************************************************************************/
-
-/*
- * 初始化
- */
 void modbus_iap_init()
 {
-	time_cnt=0;
-	idle_cnt=0;
-	pfc_forward_mode=false;
-	pfc_recv_size=0;
-	pfc_recv_state=0;
-	pfc_timeout_cnt=0;
-	pfc_enter_iap_cnt=0;
-	pfc_entered_iap=false;
-
-	modbuss_init(MODBUS_LOCAL_ADDR);
-	modbuss_set_timeout(1000);
-	modbuss_set_iap_callback(on_iap_cmd);
-
-	//CAN通信（与上位机/转接板通信）
-	modbuss_set_send_callback(cansmb_send_data);
-	cansmb_init(iap_runtime_can_id(), 125000);
-
-	//初始化UART0（与PFC通信）
-	uart0_init(115200);
+	pfc_forward_mode=false;pfc_state=PFC_GW_IDLE;pfc_state_started=0;pfc_last_activity=0;
+	pending_request_size=0;cached_request_size=0;cached_ack_size=0;pfc_parser_reset();
+	modbuss_init(MODBUS_LOCAL_ADDR);modbuss_set_timeout(1000);
+	modbuss_set_iap_callback(on_iap_cmd);modbuss_set_send_callback(cansmb_send_data);
+	cansmb_init(iap_runtime_can_id(),125000);uart0_init(115200);
 }
 
-/*
- * 查询PFC透传模式是否激活（供iap.c调用）
- */
-bool iap_pfc_forward_active(void)
-{
-	return pfc_forward_mode;
-}
+bool iap_pfc_forward_active(void){return pfc_forward_mode;}
 
-/*
- * modbus IAP 任务
- */
 void modbus_iap_task()
 {
-	uchar data;
-
-	//CAN接收处理（主通信）
-	modbuss_task();
-
-	//UART0接收处理（PFC回复）
-	while(uart0_rx_poll(&data))
+	uchar data;ulong now=sys_millis();
+	modbuss_task();while(uart0_rx_poll(&data))pfc_receive_byte(data);uart0_tx_poll();
+	if(pfc_state==PFC_GW_WAIT_ACK && (ulong)(now-pfc_state_started)>=PFC_RESPONSE_TIMEOUT_MS)
 	{
-		if(pfc_forward_mode)
-		{
-			pfc_recv_byte(data);
-		}
+		if(pending_command==0x25)gateway_close();
+		else {pfc_state=PFC_GW_IDLE;pending_request_size=0;pfc_parser_reset();}
 	}
-
-	//UART0发送轮询
-	uart0_tx_poll();
-
-	//PFC透传模式下的处理
-	if(pfc_forward_mode)
-	{
-		//检查PFC是否回复完成
-		pfc_forward_ack();
-
-		//透传超时处理
-		pfc_timeout_cnt++;
-		if(pfc_timeout_cnt>=PFC_FORWARD_TIMEOUT)
-		{
-			pfc_timeout_cnt=0;
-			pfc_recv_size=0;
-			pfc_recv_state=0;
-			//超时不退出透传模式，等待上位机重试
-		}
-	}
-
-	//如果PFC还没进入IAP模式，周期性发送进入IAP命令（8字节LLC帧格式）
-	if(pfc_forward_mode && !pfc_entered_iap)
-	{
-		pfc_enter_iap_cnt++;
-		if(pfc_enter_iap_cnt>=2500)
-		{
-			pfc_enter_iap_cnt=0;
-			send_pfc_enter_iap();
-		}
-
-		//发送一段时间后（约2秒），认为PFC已经复位进入bootloader
-		//因为PFC收到0xFF命令后会立即复位
-		if(pfc_enter_iap_cnt==0)
-		{
-			static uchar enter_try_cnt=0;
-			enter_try_cnt++;
-			if(enter_try_cnt>=3) //发送3次后认为PFC已进入bootloader
-			{
-				pfc_entered_iap=true;
-				enter_try_cnt=0;
-			}
-		}
-	}
+	else if(pfc_state==PFC_GW_WAIT_RESET && (ulong)(now-pfc_state_started)>=PFC_RESET_TIMEOUT_MS)
+	{pfc_state=PFC_GW_IDLE;}
+	if(pfc_forward_mode && pfc_state==PFC_GW_IDLE &&
+	   (ulong)(now-pfc_last_activity)>=PFC_GATEWAY_IDLE_MS)gateway_close();
 }

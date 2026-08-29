@@ -1,9 +1,10 @@
-// �ϲ������߼���CAN���մ���
+// 锟较诧拷锟斤拷锟斤拷锟竭硷拷锟斤拷CAN锟斤拷锟秸达拷锟斤拷
 
 #include "main.h"
 #include "iap_runtime.h"
 #include "can_app.h"
 #include "variables_define_app.h"
+#include "uart_app.h"
 
 #define KP_KI_SCALE_FACTOR 100
 
@@ -13,6 +14,23 @@ int deviceCount = 0;
 uint8_t dev_index ;
 
 void User_CAN_RxCpltCallback(void);
+
+/* Ask the PFC APP to enter its bootloader before LLC resets into gateway mode. */
+static void enter_pfc_iap_then_reset(void)
+{
+  uint8_t frame[8] = {0xAA, 0xFF, 0, 0, 0, 0, 0, 0x55};
+  uint8_t crc = 0;
+  int i, bit;
+  for(i = 1; i <= 5; ++i) {
+    crc ^= frame[i];
+    for(bit = 0; bit < 8; ++bit) crc = (crc & 0x80) ? (uint8_t)((crc << 1) ^ 0x07) : (uint8_t)(crc << 1);
+  }
+  frame[6] = crc;
+  uart_send_u8data(frame);
+  /* 8 bytes at 115200 need <1 ms; leave margin for DMA and PFC reset handling. */
+  delay_ms(20);
+  NVIC_SystemReset();
+}
 
 static inline void split_int16(uint8_t *high, uint8_t *low, int value)
 {
@@ -33,7 +51,7 @@ typedef struct __CAN_UserCtrlTypeDef
 
 CAN_UserCtrlTypeDef user_can_ctrl;
 
-// CAN������ʱ����
+// CAN锟斤拷锟斤拷锟斤拷时锟斤拷锟斤拷
 static inline void can_ctrl_delay(void)
 {
   CAN1->CTRL |= 1<<4;
@@ -60,10 +78,10 @@ static inline void can_ctrl_delay(void)
   CAN1->CTRL &= ~(1<<4);
 }
 // =============================================================================
-// 16λ���ݴ�������
+// 16位锟斤拷锟捷达拷锟斤拷锟斤拷锟斤拷
 // =============================================================================
 
-// 16λ������ȡ����������CRC��
+// 16位锟斤拷锟斤拷锟斤拷取锟斤拷锟斤拷锟斤拷锟斤拷锟斤拷CRC锟斤拷
 static inline uint16_t extract_16bit_data(uint8_t start_index)
 {
   uint8_t current_rx_index = user_can_ctrl.rx_cnt;
@@ -72,69 +90,69 @@ static inline uint16_t extract_16bit_data(uint8_t start_index)
   return (high_byte << 8) | low_byte;
 }
 
-// 16λ���ݴ�������������CRC��
+// 16位锟斤拷锟捷达拷锟斤拷锟斤拷锟斤拷锟斤拷锟斤拷锟斤拷CRC锟斤拷
 RAMCODE
 bool process_16bit_simple(uint8_t cmd, uint16_t* result_value)
 {
   uint8_t current_rx_index = user_can_ctrl.rx_cnt;
 
-  // ��֤���ݳ��ȣ�������Ҫ4�ֽڣ�����+����+2�ֽ����ݣ�
+  // 锟斤拷证锟斤拷锟捷筹拷锟饺ｏ拷锟斤拷锟斤拷锟斤拷要4锟街节ｏ拷锟斤拷锟斤拷+锟斤拷锟斤拷+2锟街斤拷锟斤拷锟捷ｏ拷
   if (user_can_ctrl.rxbuf_fmt[current_rx_index].data_len_code < 4)
     {
       return false;
     }
 
-  // ��֤����
+  // 锟斤拷证锟斤拷锟斤拷
   uint8_t received_cmd = user_can_ctrl.rx_buf[current_rx_index][1];
   if(received_cmd != cmd)
     {
       return false;
     }
 
-  // ��ȡ16λ����
+  // 锟斤拷取16位锟斤拷锟斤拷
   *result_value = extract_16bit_data(2);
   return true;
 }
 
-// 16λ���ݴ�����������CRC��
+// 16位锟斤拷锟捷达拷锟斤拷锟斤拷锟斤拷锟斤拷锟斤拷CRC锟斤拷
 RAMCODE
 bool process_16bit_with_crc(uint8_t cmd, uint16_t* result_value)
 {
   uint8_t current_rx_index = user_can_ctrl.rx_cnt;
 
-  // ��֤���ݳ��ȣ�������Ҫ5�ֽڣ�����+����+2�ֽ�����+CRC��
+  // 锟斤拷证锟斤拷锟捷筹拷锟饺ｏ拷锟斤拷锟斤拷锟斤拷要5锟街节ｏ拷锟斤拷锟斤拷+锟斤拷锟斤拷+2锟街斤拷锟斤拷锟斤拷+CRC锟斤拷
   if (user_can_ctrl.rxbuf_fmt[current_rx_index].data_len_code < 5)
     {
       return false;
     }
 
-  // ��֤����
+  // 锟斤拷证锟斤拷锟斤拷
   uint8_t received_cmd = user_can_ctrl.rx_buf[current_rx_index][1];
   if(received_cmd != cmd)
     {
       return false;
     }
 
-  // ��ȡ���ݺ�CRC
+  // 锟斤拷取锟斤拷锟捷猴拷CRC
   uint8_t low_byte = user_can_ctrl.rx_buf[current_rx_index][2];
   uint8_t high_byte = user_can_ctrl.rx_buf[current_rx_index][3];
   uint8_t received_crc = user_can_ctrl.rx_buf[current_rx_index][4];
 
-  // ��֤CRC
+  // 锟斤拷证CRC
   uint8_t crc_data[3] = {received_cmd, low_byte, high_byte};
   uint8_t calculated_crc = crc8(crc_data, sizeof(crc_data));
 
   if(calculated_crc != received_crc)
     {
-      return false; // CRCУ��ʧ��
+      return false; // CRC校锟斤拷失锟斤拷
     }
 
-  // ��װ����
+  // 锟斤拷装锟斤拷锟斤拷
   *result_value = (high_byte << 8) | low_byte;
   return true;
 }
 
-// 16λ���ݷ��ͺ���������CRC��
+// 16位锟斤拷锟捷凤拷锟酵猴拷锟斤拷锟斤拷锟斤拷锟斤拷CRC锟斤拷
 RAMCODE
 void can_send_16bit_simple(uint8_t cmd, uint16_t value)
 {
@@ -142,10 +160,10 @@ void can_send_16bit_simple(uint8_t cmd, uint16_t value)
 
   uint8_t data_bytes[4] =
   {
-    0x00,                          // �����ֽ�
-    cmd,                           // ����
-    (uint8_t)(value & 0xFF),       // ���ֽ�
-    (uint8_t)((value >> 8) & 0xFF) // ���ֽ�
+    0x00,                          // 锟斤拷锟斤拷锟街斤拷
+    cmd,                           // 锟斤拷锟斤拷
+    (uint8_t)(value & 0xFF),       // 锟斤拷锟街斤拷
+    (uint8_t)((value >> 8) & 0xFF) // 锟斤拷锟街斤拷
   };
 
   tx_buf_fmt.id_extension = 1;
@@ -156,7 +174,7 @@ void can_send_16bit_simple(uint8_t cmd, uint16_t value)
   LL_CAN_TransmitPTB_CPU(CAN1, &tx_buf_fmt, (uint32_t*)data_bytes);
 }
 
-// 16λ���ݷ��ͺ�������CRC��
+// 16位锟斤拷锟捷凤拷锟酵猴拷锟斤拷锟斤拷锟斤拷CRC锟斤拷
 RAMCODE
 void can_send_16bit_with_crc(uint8_t cmd, uint16_t value)
 {
@@ -165,16 +183,16 @@ void can_send_16bit_with_crc(uint8_t cmd, uint16_t value)
   uint8_t low_byte = (uint8_t)(value & 0xFF);
   uint8_t high_byte = (uint8_t)((value >> 8) & 0xFF);
 
-  // ����CRC
+  // 锟斤拷锟斤拷CRC
   uint8_t crc_data[3] = {cmd, low_byte, high_byte};
   uint8_t crc = crc8(crc_data, sizeof(crc_data));
 
   uint8_t data_bytes[5] =
   {
-    0x00,      // �����ֽ�
-    cmd,       // ����
-    low_byte,  // ���ֽ�
-    high_byte, // ���ֽ�
+    0x00,      // 锟斤拷锟斤拷锟街斤拷
+    cmd,       // 锟斤拷锟斤拷
+    low_byte,  // 锟斤拷锟街斤拷
+    high_byte, // 锟斤拷锟街斤拷
     crc        // CRC
   };
 
@@ -187,17 +205,17 @@ void can_send_16bit_with_crc(uint8_t cmd, uint16_t value)
 }
 
 // =============================================================================
-// 32λ���ݴ�������
+// 32位锟斤拷锟捷达拷锟斤拷锟斤拷锟斤拷
 // =============================================================================
 
-// 32λ������ȡ����������CRC��
+// 32位锟斤拷锟斤拷锟斤拷取锟斤拷锟斤拷锟斤拷锟斤拷锟斤拷CRC锟斤拷
 static inline uint32_t extract_32bit_data(uint8_t start_index)
 {
   uint8_t current_rx_index = user_can_ctrl.rx_cnt;
-  uint8_t byte0 = user_can_ctrl.rx_buf[current_rx_index][start_index];     // ����ֽ�
+  uint8_t byte0 = user_can_ctrl.rx_buf[current_rx_index][start_index];     // 锟斤拷锟斤拷纸锟?
   uint8_t byte1 = user_can_ctrl.rx_buf[current_rx_index][start_index + 1];
   uint8_t byte2 = user_can_ctrl.rx_buf[current_rx_index][start_index + 2];
-  uint8_t byte3 = user_can_ctrl.rx_buf[current_rx_index][start_index + 3]; // ����ֽ�
+  uint8_t byte3 = user_can_ctrl.rx_buf[current_rx_index][start_index + 3]; // 锟斤拷锟斤拷纸锟?
 
   return ((uint32_t)byte3 << 24) |
          ((uint32_t)byte2 << 16) |
@@ -205,99 +223,99 @@ static inline uint32_t extract_32bit_data(uint8_t start_index)
          byte0;
 }
 
-// 32λ���ݴ�������������CRC��
+// 32位锟斤拷锟捷达拷锟斤拷锟斤拷锟斤拷锟斤拷锟斤拷锟斤拷CRC锟斤拷
 RAMCODE
 bool process_32bit_simple(uint8_t cmd, uint32_t* result_value)
 {
   uint8_t current_rx_index = user_can_ctrl.rx_cnt;
 
-  // ��֤���ݳ��ȣ�������Ҫ6�ֽڣ�����+����+4�ֽ����ݣ�
+  // 锟斤拷证锟斤拷锟捷筹拷锟饺ｏ拷锟斤拷锟斤拷锟斤拷要6锟街节ｏ拷锟斤拷锟斤拷+锟斤拷锟斤拷+4锟街斤拷锟斤拷锟捷ｏ拷
   if (user_can_ctrl.rxbuf_fmt[current_rx_index].data_len_code < 6)
     {
       return false;
     }
 
-  // ��֤����
+  // 锟斤拷证锟斤拷锟斤拷
   uint8_t received_cmd = user_can_ctrl.rx_buf[current_rx_index][1];
   if(received_cmd != cmd)
     {
       return false;
     }
 
-  // ��ȡ32λ����
+  // 锟斤拷取32位锟斤拷锟斤拷
   *result_value = extract_32bit_data(2);
   return true;
 }
 
-// 32λ����CRC��������
+// 32位锟斤拷锟斤拷CRC锟斤拷锟斤拷锟斤拷锟斤拷
 RAMCODE
 bool process_32bit_with_crc(uint8_t cmd, float* result_value, int scale_factor)
 {
   uint8_t current_rx_index = user_can_ctrl.rx_cnt;
 
-  // ��֤���ݳ��ȣ�������Ҫ7�ֽڣ�����+����+4�ֽ�����+CRC��
+  // 锟斤拷证锟斤拷锟捷筹拷锟饺ｏ拷锟斤拷锟斤拷锟斤拷要7锟街节ｏ拷锟斤拷锟斤拷+锟斤拷锟斤拷+4锟街斤拷锟斤拷锟斤拷+CRC锟斤拷
   if (user_can_ctrl.rxbuf_fmt[current_rx_index].data_len_code < 7)
     {
       return false;
     }
 
-  // ��ȡ���յ�������
+  // 锟斤拷取锟斤拷锟秸碉拷锟斤拷锟斤拷锟斤拷
   uint8_t received_cmd = user_can_ctrl.rx_buf[current_rx_index][1];
-  uint8_t data_byte0 = user_can_ctrl.rx_buf[current_rx_index][2];  // ���λ�ֽ�
+  uint8_t data_byte0 = user_can_ctrl.rx_buf[current_rx_index][2];  // 锟斤拷锟轿伙拷纸锟?
   uint8_t data_byte1 = user_can_ctrl.rx_buf[current_rx_index][3];
   uint8_t data_byte2 = user_can_ctrl.rx_buf[current_rx_index][4];
-  uint8_t data_byte3 = user_can_ctrl.rx_buf[current_rx_index][5];  // ���λ�ֽ�
+  uint8_t data_byte3 = user_can_ctrl.rx_buf[current_rx_index][5];  // 锟斤拷锟轿伙拷纸锟?
   uint8_t received_crc = user_can_ctrl.rx_buf[current_rx_index][6];
 
-  // ��֤�����Ƿ�ƥ��
+  // 锟斤拷证锟斤拷锟斤拷锟角凤拷匹锟斤拷
   if(received_cmd != cmd)
     {
       return false;
     }
 
-  // �ؽ�CRC�������ݣ�����+4�ֽ����ݣ�
+  // 锟截斤拷CRC锟斤拷锟斤拷锟斤拷锟捷ｏ拷锟斤拷锟斤拷+4锟街斤拷锟斤拷锟捷ｏ拷
   uint8_t crc_data[5] = {received_cmd, data_byte0, data_byte1, data_byte2, data_byte3};
   uint8_t calculated_crc = crc8(crc_data, sizeof(crc_data));
 
-  // ��֤CRC
+  // 锟斤拷证CRC
   if(calculated_crc != received_crc)
     {
-      return false; // CRCУ��ʧ��
+      return false; // CRC校锟斤拷失锟斤拷
     }
 
-  // ����32λ����
+  // 锟斤拷锟斤拷32位锟斤拷锟斤拷
   uint32_t raw_value = ((uint32_t)data_byte3 << 24) |
                        ((uint32_t)data_byte2 << 16) |
                        ((uint32_t)data_byte1 << 8) |
                        data_byte0;
 
-  // ת��Ϊ������
+  // 转锟斤拷为锟斤拷锟斤拷锟斤拷
   float float_value = (float)raw_value / (float)scale_factor;
 
-//  // ��Χ��飨KP/KIͨ����0-100000��Χ�ڣ�
+//  // 锟斤拷围锟斤拷椋↘P/KI通锟斤拷锟斤拷0-100000锟斤拷围锟节ｏ拷
 //  if(float_value < 0.0f || float_value > 100000.0f)
 //    {
-//      return false; // ��ֵ������Χ
+//      return false; // 锟斤拷值锟斤拷锟斤拷锟斤拷围
 //    }
 
-  // ������
+  // 锟斤拷锟斤拷锟斤拷
   *result_value = float_value;
   return true;
 }
 
-// 32λ���ݴ�����������CRC������ԭʼ���ݣ�
+// 32位锟斤拷锟捷达拷锟斤拷锟斤拷锟斤拷锟斤拷锟斤拷CRC锟斤拷锟斤拷锟斤拷原始锟斤拷锟捷ｏ拷
 RAMCODE
 bool process_32bit_with_crc_raw(uint8_t cmd, uint32_t* result_value)
 {
   uint8_t current_rx_index = user_can_ctrl.rx_cnt;
 
-  // ��֤���ݳ��ȣ�������Ҫ7�ֽڣ�����+����+4�ֽ�����+CRC��
+  // 锟斤拷证锟斤拷锟捷筹拷锟饺ｏ拷锟斤拷锟斤拷锟斤拷要7锟街节ｏ拷锟斤拷锟斤拷+锟斤拷锟斤拷+4锟街斤拷锟斤拷锟斤拷+CRC锟斤拷
   if (user_can_ctrl.rxbuf_fmt[current_rx_index].data_len_code < 7)
     {
       return false;
     }
 
-  // ��ȡ���յ�������
+  // 锟斤拷取锟斤拷锟秸碉拷锟斤拷锟斤拷锟斤拷
   uint8_t received_cmd = user_can_ctrl.rx_buf[current_rx_index][1];
   uint8_t data_byte0 = user_can_ctrl.rx_buf[current_rx_index][2];
   uint8_t data_byte1 = user_can_ctrl.rx_buf[current_rx_index][3];
@@ -305,13 +323,13 @@ bool process_32bit_with_crc_raw(uint8_t cmd, uint32_t* result_value)
   uint8_t data_byte3 = user_can_ctrl.rx_buf[current_rx_index][5];
   uint8_t received_crc = user_can_ctrl.rx_buf[current_rx_index][6];
 
-  // ��֤����
+  // 锟斤拷证锟斤拷锟斤拷
   if(received_cmd != cmd)
     {
       return false;
     }
 
-  // ��֤CRC
+  // 锟斤拷证CRC
   uint8_t crc_data[5] = {received_cmd, data_byte0, data_byte1, data_byte2, data_byte3};
   uint8_t calculated_crc = crc8(crc_data, sizeof(crc_data));
 
@@ -320,7 +338,7 @@ bool process_32bit_with_crc_raw(uint8_t cmd, uint32_t* result_value)
       return false;
     }
 
-  // ����32λ����
+  // 锟斤拷锟斤拷32位锟斤拷锟斤拷
   *result_value = ((uint32_t)data_byte3 << 24) |
                   ((uint32_t)data_byte2 << 16) |
                   ((uint32_t)data_byte1 << 8) |
@@ -329,7 +347,7 @@ bool process_32bit_with_crc_raw(uint8_t cmd, uint32_t* result_value)
   return true;
 }
 
-// 32λ���ݷ��ͺ���������CRC��
+// 32位锟斤拷锟捷凤拷锟酵猴拷锟斤拷锟斤拷锟斤拷锟斤拷CRC锟斤拷
 RAMCODE
 void can_send_32bit_simple(uint8_t cmd, uint32_t value)
 {
@@ -337,12 +355,12 @@ void can_send_32bit_simple(uint8_t cmd, uint32_t value)
 
   uint8_t data_bytes[6] =
   {
-    0x00,                             // �����ֽ�
-    cmd,                              // ����
-    (uint8_t)(value & 0xFF),          // byte0 (����ֽ�)
+    0x00,                             // 锟斤拷锟斤拷锟街斤拷
+    cmd,                              // 锟斤拷锟斤拷
+    (uint8_t)(value & 0xFF),          // byte0 (锟斤拷锟斤拷纸锟?)
     (uint8_t)((value >> 8) & 0xFF),   // byte1
     (uint8_t)((value >> 16) & 0xFF),  // byte2
-    (uint8_t)((value >> 24) & 0xFF)   // byte3 (����ֽ�)
+    (uint8_t)((value >> 24) & 0xFF)   // byte3 (锟斤拷锟斤拷纸锟?)
   };
 
   tx_buf_fmt.id_extension = 1;
@@ -353,7 +371,7 @@ void can_send_32bit_simple(uint8_t cmd, uint32_t value)
   LL_CAN_TransmitPTB_CPU(CAN1, &tx_buf_fmt, (uint32_t*)data_bytes);
 }
 
-// 32λ���ݷ��ͺ�������CRC��
+// 32位锟斤拷锟捷凤拷锟酵猴拷锟斤拷锟斤拷锟斤拷CRC锟斤拷
 RAMCODE
 void can_send_32bit_with_crc(uint8_t cmd, uint32_t value)
 {
@@ -364,18 +382,18 @@ void can_send_32bit_with_crc(uint8_t cmd, uint32_t value)
   uint8_t byte2 = (uint8_t)((value >> 16) & 0xFF);
   uint8_t byte3 = (uint8_t)((value >> 24) & 0xFF);
 
-  // ����CRC
+  // 锟斤拷锟斤拷CRC
   uint8_t crc_data[5] = {cmd, byte0, byte1, byte2, byte3};
   uint8_t crc = crc8(crc_data, sizeof(crc_data));
 
   uint8_t data_bytes[7] =
   {
-    0x00,   // �����ֽ�
-    cmd,    // ����
-    byte0,  // ����ֽ�
+    0x00,   // 锟斤拷锟斤拷锟街斤拷
+    cmd,    // 锟斤拷锟斤拷
+    byte0,  // 锟斤拷锟斤拷纸锟?
     byte1,
     byte2,
-    byte3,  // ����ֽ�
+    byte3,  // 锟斤拷锟斤拷纸锟?
     crc     // CRC
   };
 
@@ -387,7 +405,7 @@ void can_send_32bit_with_crc(uint8_t cmd, uint32_t value)
   LL_CAN_TransmitPTB_CPU(CAN1, &tx_buf_fmt, (uint32_t*)data_bytes);
 }
 
-// 32λ���������ͺ�������CRC�����ţ�
+// 32位锟斤拷锟斤拷锟斤拷锟斤拷锟酵猴拷锟斤拷锟斤拷锟斤拷CRC锟斤拷锟斤拷锟脚ｏ拷
 RAMCODE
 void can_send_32bit_float_with_crc(uint8_t cmd, float value, int scale_factor)
 {
@@ -444,7 +462,7 @@ void process_common_commands(uint8_t can_cmd, uint32_t received_id)
             llc.temp_recover_mode = user_data.temp_recover_mode;
             break;
 
-        case CMD_OVERTEMP_POINT:  // ���µ㣨16λ������CRC��
+        case CMD_OVERTEMP_POINT:  // 锟斤拷锟铰点（16位锟斤拷锟斤拷锟斤拷CRC锟斤拷
         {
             uint16_t rx_data_16;
             if(process_16bit_simple(CMD_OVERTEMP_POINT, &rx_data_16)) {
@@ -454,7 +472,7 @@ void process_common_commands(uint8_t can_cmd, uint32_t received_id)
         }
         break;
 
-        case CMD_OVERTEMP_REC_POINT:  // ���»ָ��㣨16λ����CRC��
+        case CMD_OVERTEMP_REC_POINT:  // 锟斤拷锟铰恢革拷锟姐（16位锟斤拷锟斤拷CRC锟斤拷
         {
             uint16_t rx_data_16;
             if(process_16bit_with_crc(CMD_OVERTEMP_REC_POINT, &rx_data_16)) {
@@ -464,7 +482,7 @@ void process_common_commands(uint8_t can_cmd, uint32_t received_id)
         }
         break;
 
-        case CMD_FACTOR_VOLTAGE:  // У׼��ѹ��16λ������CRC��
+        case CMD_FACTOR_VOLTAGE:  // 校准锟斤拷压锟斤拷16位锟斤拷锟斤拷锟斤拷CRC锟斤拷
         {
             uint16_t rx_data_16;
             if(process_16bit_simple(CMD_FACTOR_VOLTAGE, &rx_data_16)) {
@@ -473,7 +491,7 @@ void process_common_commands(uint8_t can_cmd, uint32_t received_id)
         }
         break;
 
-        case CMD_THEOR_VOLTAGE:  // ���۵�ѹ��16λ������CRC��
+        case CMD_THEOR_VOLTAGE:  // 锟斤拷锟桔碉拷压锟斤拷16位锟斤拷锟斤拷锟斤拷CRC锟斤拷
         {
             uint16_t rx_data_16;
             if(process_16bit_simple(CMD_THEOR_VOLTAGE, &rx_data_16)) {
@@ -511,29 +529,29 @@ void process_common_commands(uint8_t can_cmd, uint32_t received_id)
 
 						if(llc.crc_data == llc.voltage_crc)
 						{
-								float factor_voltage_float = llc.factor_voltage / 1000.0f; // ��ǰ����/��λ����ʾֵ
-								float theor_voltage_float  = llc.theor_voltage  / 1000.0f; // ���ñ���ʵֵ
+								float factor_voltage_float = llc.factor_voltage / 1000.0f; // 锟斤拷前锟斤拷锟斤拷/锟斤拷位锟斤拷锟斤拷示值
+								float theor_voltage_float  = llc.theor_voltage  / 1000.0f; // 锟斤拷锟矫憋拷锟斤拷实值
 
 								if((factor_voltage_float > 1.0f) && (theor_voltage_float > 1.0f))
 								{
 										/*
-										 * ����Ŀ��У׼��
-										 * ���統ǰĿ��48.19V��ʵ��ӦΪ48.00V
-										 * ��Ŀ�� = ԭĿ�� / ��ǰ��ʾֵ * ��ʵֵ
+										 * 锟斤拷锟斤拷目锟斤拷校准锟斤拷
+										 * 锟斤拷锟界当前目锟斤拷48.19V锟斤拷实锟斤拷应为48.00V
+										 * 锟斤拷目锟斤拷 = 原目锟斤拷 / 锟斤拷前锟斤拷示值 * 锟斤拷实值
 										 */
 										user_data.coef_target = 
 												(llc.vbus_target / factor_voltage_float) * theor_voltage_float;
 
 										/*
-										 * ��ʾ������
-										 * ��λ����ʾֵ = llc.vbus_rel - llc.can_com_voltag_delta
-										 * ���� 48.19 - 0.19 = 48.00
+										 * 锟斤拷示锟斤拷锟斤拷锟斤拷
+										 * 锟斤拷位锟斤拷锟斤拷示值 = llc.vbus_rel - llc.can_com_voltag_delta
+										 * 锟斤拷锟斤拷 48.19 - 0.19 = 48.00
 										 */
 										user_data.vout_can_delta = 
 												factor_voltage_float - theor_voltage_float;
 
 										/*
-										 * Ŀ���ѹ���48V��ƫ����
+										 * 目锟斤拷锟窖癸拷锟斤拷48V锟斤拷偏锟斤拷锟斤拷
 										 */
 										user_data.vout_trim_delta = 
 												user_data.coef_target - 48.0f;
@@ -569,7 +587,7 @@ void process_common_commands(uint8_t can_cmd, uint32_t received_id)
 //				}
 //				break;
 
-        case CMD_KP:  // KP������32λ����CRC�����㣩
+        case CMD_KP:  // KP锟斤拷锟斤拷锟斤拷32位锟斤拷锟斤拷CRC锟斤拷锟斤拷锟姐）
         {
             float float_value;
 //					if(llc.para_scale_factor_is_ok)
@@ -583,7 +601,7 @@ void process_common_commands(uint8_t can_cmd, uint32_t received_id)
         }
         break;
 
-        case CMD_KI:  // KI������32λ����CRC�����㣩
+        case CMD_KI:  // KI锟斤拷锟斤拷锟斤拷32位锟斤拷锟斤拷CRC锟斤拷锟斤拷锟姐）
         {
             float float_value;
 //					if(llc.para_scale_factor_is_ok)
@@ -597,7 +615,7 @@ void process_common_commands(uint8_t can_cmd, uint32_t received_id)
         }
         break;
 
-        case CMD_TEST:  // ���Բ�����32λ����CRC��
+        case CMD_TEST:  // 锟斤拷锟皆诧拷锟斤拷锟斤拷32位锟斤拷锟斤拷CRC锟斤拷
         {
             float rx_data_32;
 //					if(llc.para_scale_factor_is_ok)
@@ -612,7 +630,7 @@ void process_common_commands(uint8_t can_cmd, uint32_t received_id)
         }
         break;
 
-        case CMD_TEST2:  // ���Բ���2��32λ����CRC��
+        case CMD_TEST2:  // 锟斤拷锟皆诧拷锟斤拷2锟斤拷32位锟斤拷锟斤拷CRC锟斤拷
         {
             float rx_data_32;
 //					if(llc.para_scale_factor_is_ok)
@@ -793,7 +811,7 @@ void process_common_commands(uint8_t can_cmd, uint32_t received_id)
         }
         break;
         default:
-            // δ֪�������������־��¼
+            // 未知锟斤拷锟筋，锟斤拷锟斤拷锟斤拷锟斤拷锟斤拷志锟斤拷录
             break;
     }
 }
@@ -852,14 +870,14 @@ void can_init_app(void)
   user_can_ctrl.txbuf_fmt.id_extension = 1;
   user_can_ctrl.txbuf_fmt.id = __LL_CAN_FrameIDFormat_29Bits(USER_CAN_STD_FRM_ID);
 
-  // ���ý��ջ�������ʽ
+  // 锟斤拷锟矫斤拷锟秸伙拷锟斤拷锟斤拷锟斤拷式
   for(int i = 0; i < USER_CAN_RX_FRM_NUMS; i++)
     {
       user_can_ctrl.rxbuf_fmt[i].id_extension = 1;
       user_can_ctrl.rxbuf_fmt[i].data_len_code = 8;
     }
 
-  // ����CAN�����ж�
+  // 锟斤拷锟斤拷CAN锟斤拷锟斤拷锟叫讹拷
   LL_CAN_Receive_IT(user_can_ctrl.Instance, &user_can_ctrl.rxbuf_fmt[0], user_can_ctrl.rx_buf[0]);
   for(int i = 0; i < 8; i++)
     {
@@ -1023,7 +1041,8 @@ void LL_CAN_RxCallback(CAN_TypeDef* Instance)
            (user_can_ctrl.rx_buf[user_can_ctrl.rx_cnt][0] == 2 ||
             user_can_ctrl.rx_buf[user_can_ctrl.rx_cnt][0] == 1) && can_cmd == 0x41)
         {
-            NVIC_SystemReset();
+            if(user_can_ctrl.rx_buf[user_can_ctrl.rx_cnt][0] == 1) enter_pfc_iap_then_reset();
+            else NVIC_SystemReset();
         }
 
         switch(received_id) {
@@ -1032,34 +1051,35 @@ void LL_CAN_RxCallback(CAN_TypeDef* Instance)
                 break;
 
             case 0xB0000:
-                // HLD�豸����
+                // HLD锟借备锟斤拷锟斤拷
                 process_common_commands(can_cmd, received_id);
                 break;
 
             case IAP_CAN_ID:
-                // IAP����
+                // IAP锟斤拷锟斤拷
                 if((user_can_ctrl.rx_buf[user_can_ctrl.rx_cnt][0] == 2 ||  // LLC: 2, PFC: 1
                     user_can_ctrl.rx_buf[user_can_ctrl.rx_cnt][0] == 1) &&
                    user_can_ctrl.rx_buf[user_can_ctrl.rx_cnt][1] == 0x41) {
-                    NVIC_SystemReset();
+                    if(user_can_ctrl.rx_buf[user_can_ctrl.rx_cnt][0] == 1) enter_pfc_iap_then_reset();
+                    else NVIC_SystemReset();
                 }
                 break;
 
             default:
-                // ����Ƿ�ΪLLC�豸��Χ��ID��0xA0000-0xA0007��
+                // 锟斤拷锟斤拷欠锟轿狶LC锟借备锟斤拷围锟斤拷ID锟斤拷0xA0000-0xA0007锟斤拷
                 if(received_id == llc.can_addr) {
                     process_common_commands(can_cmd, received_id);
                 }
                 break;
         }
 
-        // ���½��ռ�����
+        // 锟斤拷锟铰斤拷锟秸硷拷锟斤拷锟斤拷
         user_can_ctrl.rx_cnt++;
         if(user_can_ctrl.rx_cnt >= USER_CAN_RX_FRM_NUMS) {
             user_can_ctrl.rx_cnt = 0;
         }
 
-        // ��������CAN�����ж�
+        // 锟斤拷锟斤拷锟斤拷锟斤拷CAN锟斤拷锟斤拷锟叫讹拷
         LL_CAN_Receive_IT(user_can_ctrl.Instance, 
                          &user_can_ctrl.rxbuf_fmt[user_can_ctrl.rx_cnt], 
                          user_can_ctrl.rx_buf[user_can_ctrl.rx_cnt]);
@@ -1142,7 +1162,7 @@ void can_addr_set()
       llc.can_addr = 0xA0007;
       break;
     default:
-      llc.can_addr = 0xA0000; // Ĭ��ֵ
+      llc.can_addr = 0xA0000; // 默锟斤拷值
       break;
     }
 	 dev_index = llc.can_addr & 0x7;

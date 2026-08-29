@@ -1,7 +1,7 @@
 /*
  * sys_mgr.c
  *
- *  Created on: 2024年3月20日
+ *  Created on: 2024骞?3鏈?20鏃?
  *      Author: Liang Jinfeng
  */
 
@@ -17,12 +17,14 @@
 #include "iap.h"
 #include "iap_runtime.h"
 
+static volatile ulong system_millis;
+
 /*******************************************************************************
- * 静态函数
+ * 闈欐?佸嚱鏁?
  ******************************************************************************/
 
 /*
- * UART0测试
+ * UART0娴嬭瘯
  */
 //static void uart_test()
 //{
@@ -38,14 +40,15 @@
 //}
 
 /*******************************************************************************
- * 接口函数
+ * 鎺ュ彛鍑芥暟
  ******************************************************************************/
 
 /*
- * 初始化
+ * 鍒濆鍖?
  */
 void sys_init()
 {
+	system_millis=0;
 	iwdg_init(1000);
 	led_init();
 	iap_runtime_init(CAN_LOCAL_ID);
@@ -56,12 +59,21 @@ void sys_init()
 }
 
 /*
- * 定时器回调函数
- * 时基：20us
+ * 瀹氭椂鍣ㄥ洖璋冨嚱鏁?
+ * 鏃跺熀锛?20us
  */
 void sys_timer_isr()
 {
 	static uchar state=0;
+	static uchar ms_divider=0;
+
+	/* TMR8 runs every 20 us: 50 interrupts are exactly 1 ms. */
+	ms_divider++;
+	if(ms_divider>=50)
+	{
+		ms_divider=0;
+		system_millis++;
+	}
 
 	state++;
 
@@ -72,11 +84,16 @@ void sys_timer_isr()
 	}
 }
 
+ulong sys_millis(void)
+{
+	return system_millis;
+}
+
 /*
- * 系统管理任务
+ * 绯荤粺绠＄悊浠诲姟
  */
 void sys_task()
 {
 	//uart_test();
-	iwdg_feed(); //喂狗
+	iwdg_feed(); //鍠傜嫍
 }

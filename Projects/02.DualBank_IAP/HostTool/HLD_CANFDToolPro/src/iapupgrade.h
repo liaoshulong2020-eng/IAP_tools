@@ -38,7 +38,7 @@ private:
     QByteArray loadHex(const QString &path);
     QByteArray packet(uint16_t command,uint32_t address,uint16_t length,const QByteArray &payload) const;
     QByteArray sendAndWait(const QByteArray &request,int timeoutMs);
-    bool enterIap();bool manageBank();bool beginDualBank(int size,uint32_t crc);bool writeFlash(const QByteArray &firmware);bool verifyDualBank();bool commitDualBank();bool writeChecksum(int size,uint32_t crc);bool writeAddress();bool exitIap();
+    bool enterIap();bool probeTarget();bool manageBank();bool beginDualBank(int size,uint32_t crc);bool writeFlash(const QByteArray &firmware);bool verifyDualBank();bool commitDualBank();bool writeChecksum(int size,uint32_t crc);bool writeAddress();bool exitIap();
     void saveResume(int index);int loadResume(const QByteArray &firmware,uint32_t crc);void clearResume();
     static uint16_t crc16(const QByteArray &data,int size=-1);static uint32_t crc32(const QByteArray &data);
     static uint16_t read16(const QByteArray &data,int offset);static uint32_t read32(const QByteArray &data,int offset);

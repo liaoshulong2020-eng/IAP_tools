@@ -1,9 +1,9 @@
 /*
- * iap.c - PFC Bootloader IAP鏍稿績閫昏緫
+ * iap.c - PFC Bootloader IAP閺嶇ǹ绺鹃柅鏄忕帆
  *
- * PFC bootloader琚姩鎺ユ敹LLC杞彂鐨処AP鍛戒护锛屼笉涓诲姩鍙戦€佷换浣曡姹? *
- *  Created on: 2024骞?鏈?6鏃? *      Author: Liang Jinfeng
- *  Modified: 2025 - 閫傞厤PFC bootloader锛岀Щ闄や富鍔ㄨ姹傞€昏緫
+ * PFC bootloader鐞氼偄濮╅幒銉︽暪LLC鏉烆剙褰傞惃鍑P閸涙垝鎶ら敍灞肩瑝娑撹濮╅崣鎴︹偓浣锋崲娴ｆ洝顕Ч? *
+ *  Created on: 2024楠??閺??6閺?? *      Author: Liang Jinfeng
+ *  Modified: 2025 - 闁倿鍘FC bootloader閿涘瞼些闂勩倓瀵岄崝銊嚞濮瑰倿鈧槒绶?
  */
 
 #include "iap.h"
@@ -11,6 +11,7 @@
 #include "crc32.h"
 #include "modbuss.h"
 #include "iap_runtime.h"
+#include "sys_mgr.h"
 
 #define RAM_BASE_ADDR      0x20000000UL
 #define RAM_END_ADDR       0x20020000UL
@@ -20,14 +21,15 @@
 #define PFC_IAP_BOOT_MAGIC_VALUE    0x50464349UL
 
 /*******************************************************************************
- * 闈欐€佸彉閲? ******************************************************************************/
+ * 闂堟瑦鈧礁褰夐柌? ******************************************************************************/
 
-//鏄惁杩涘叆IAP妯″紡
+//閺勵垰鎯佹潻娑樺弳IAP濡?崇础
 static bool iap_flag;
 
 static ulong time_cnt;
+static ulong boot_wait_started;
 
-//鏄惁鏀跺埌閫€鍑洪€氱煡锛屽噯澶囪烦杞珹PP
+//閺勵垰鎯侀弨璺哄煂闁偓閸戞椽鈧氨鐓￠敍灞藉櫙婢跺洩鐑︽潪鐝筆P
 static bool jump_flag;
 
 #define DB_INACTIVE_BASE  0x08020000UL
@@ -37,9 +39,9 @@ static ulong db_image_size;
 static ulong db_image_crc;
 
 /*******************************************************************************
- * 闈欐€佸嚱鏁? ******************************************************************************/
+ * 闂堟瑦鈧礁鍤遍弫? ******************************************************************************/
 
-//瀹氫箟鍑芥暟鎸囬拡
+//鐎规矮绠熼崙鑺ユ殶閹稿洭鎷?
 typedef void (*app_main_t)(void);
 
 static bool range_is_valid(ulong addr,ulong size,ulong start,ulong end)
@@ -89,7 +91,7 @@ static bool iap_boot_magic_is_set()
 }
 
 /*
- * 璺宠浆鍒癆PP
+ * 鐠哄疇娴嗛崚鐧哖P
  */
 static void jump_to_app()
 {
@@ -101,17 +103,17 @@ static void jump_to_app()
 	__disable_irq();
 	app=*((ulong*)(APP_BASE_ADDR+4));
 	appmain=(app_main_t)app;
-	//璁剧疆鏍堥《鍦板潃
+	//鐠佸墽鐤嗛弽鍫ャ?婇崷鏉挎絻
 	__set_MSP(*((ulong*)APP_BASE_ADDR));
-	//鍚姩APP
+	//閸氼垰濮〢PP
 	appmain();
 }
 
 /*
- * @brief 缂栫▼Flash
- * @param addr 缂栫▼寮€濮嬪湴鍧€锛屽繀椤绘寜8瀛楄妭瀵归綈
- * @param buff 寰呭啓鍏lash鐨勬暟鎹紦鍐插尯
- * @param size 鏁版嵁闀垮害锛屽繀椤绘槸8鐨勫€嶆暟
+ * @brief 缂傛牜鈻糉lash
+ * @param addr 缂傛牜鈻煎鈧慨瀣勾閸р偓閿涘苯绻?妞ょ粯瀵?8鐎涙濡?靛綊缍?
+ * @param buff 瀵板懎鍟撻崗顧宭ash閻ㄥ嫭鏆熼幑顔剧处閸愭彃灏?
+ * @param size 閺佺増宓侀梹鍨閿涘苯绻?妞ょ粯妲?8閻ㄥ嫬鈧秵鏆?
  */
 static bool flash_program(ulong addr,const void *buff,ulong size)
 {
@@ -124,21 +126,21 @@ static bool flash_program(ulong addr,const void *buff,ulong size)
 	if(!flash_write_is_aligned(addr,size))return false;
 
 	offset=addr-FLASH_BASE_ADDR;
-	//鑾峰彇鎵囧尯澶у皬
+	//閼惧嘲褰囬幍鍥у隘婢堆冪毈
 	sector_size=LL_EFLASH_SectorSize_Get(EFLASH);
-	//璁＄畻鎵囧尯绱㈠紩
+	//鐠侊紕鐣婚幍鍥у隘缁便垹绱?
 	sector_index=offset/sector_size;
 	remainder=offset%sector_size;
-	//濡傛灉鍒氬ソ涓烘墖鍖鸿捣濮嬪湴鍧€锛屽垯鍏堟摝闄ゆ墖鍖?	if(remainder==0)
+	//婵″倹鐏夐崚姘偨娑撶儤澧栭崠楦挎崳婵婀撮崸鈧敍灞藉灟閸忓牊鎽濋梽銈嗗閸??	if(remainder==0)
 	{
 		if(LL_EFLASH_EraseSector(EFLASH,sector_index)!=LL_OK)return false;
 	}
 
-	//鍐欏叆
+	//閸愭瑥鍙?
 	rsize=LL_EFLASH_Program(EFLASH,addr,(uchar*)buff,size);
 	if(rsize!=size)return false;
 
-	//鏍￠獙
+	//閺嶏繝鐛?
 	rsize=LL_EFLASH_Verify(EFLASH,addr,(uchar*)buff,size);
 	if(rsize!=size)return false;
 
@@ -146,7 +148,7 @@ static bool flash_program(ulong addr,const void *buff,ulong size)
 }
 
 /*
- * cmd=0锛氶€€鍑篒AP妯″紡
+ * cmd=0閿涙岸鈧偓閸戠瘨AP濡?崇础
  */
 static void cmd_exit_iap(iap_pkt_t *pkt)
 {
@@ -156,12 +158,13 @@ static void cmd_exit_iap(iap_pkt_t *pkt)
 		return;
 	}
 	time_cnt=0;
+	boot_wait_started=sys_millis();
 	iap_flag=false;
 	jump_flag=true;
 }
 
 /*
- * cmd=1锛氳繘鍏AP妯″紡
+ * cmd=1閿涙俺绻橀崗顧廇P濡?崇础
  */
 static void cmd_enter_iap(iap_pkt_t *pkt)
 {
@@ -170,12 +173,12 @@ static void cmd_enter_iap(iap_pkt_t *pkt)
 	iap_flag=true;
 	jump_flag=false;
 	who=pkt->data[0];
-	//濡傛灉鏄嚜宸卞彂閫佺殑璇锋眰锛屽垯涓嶅洖澶岮CK
+	//婵″倹鐏夐弰顖濆殰瀹稿崬褰傞柅浣烘畱鐠囬攱鐪伴敍灞藉灟娑撳秴娲栨径宀瓹K
 	if(who==0)pkt->cmd=0xffff;
 }
 
 /*
- * cmd=2锛氳Flash鍛戒护
+ * cmd=2閿涙俺顕癋lash閸涙垝鎶?
  */
 static void cmd_read_flash(iap_pkt_t *pkt)
 {
@@ -190,7 +193,7 @@ static void cmd_read_flash(iap_pkt_t *pkt)
 }
 
 /*
- * cmd=3锛氬啓Flash鍛戒护
+ * cmd=3閿涙艾鍟揊lash閸涙垝鎶?
  */
 static void cmd_write_flash(iap_pkt_t *pkt)
 {
@@ -208,7 +211,7 @@ static void cmd_write_flash(iap_pkt_t *pkt)
 }
 
 /*
- * cmd=4锛氬啓鏍￠獙鐮? */
+ * cmd=4閿涙艾鍟撻弽锟犵崣閻?? */
 static void cmd_write_checksum(iap_pkt_t *pkt)
 {
 	ulong appsize;
@@ -309,12 +312,24 @@ static void cmd_bank_confirm(iap_pkt_t *pkt)
 static void cmd_bank_rollback(iap_pkt_t *pkt){pkt->addr=bank_current_physical()?0:1;cmd_bank_switch(pkt);}
 static void cmd_bank_reset(iap_pkt_t *pkt){(void)pkt;NVIC_SystemReset();}
 
+static void cmd_capability_query(iap_pkt_t *pkt)
+{
+	ulong capabilities=0x0000001BUL,id=iap_runtime_can_id();
+	pkt->data[0]=1;pkt->data[1]=0;
+	pkt->data[2]=(uchar)(MODBUS_MAX_REG_PAYLOAD_SIZE&0xff);
+	pkt->data[3]=(uchar)(MODBUS_MAX_REG_PAYLOAD_SIZE>>8);
+	memmove(pkt->data+4,&capabilities,4);
+	pkt->data[8]=1;pkt->data[9]=1;pkt->data[10]=0;pkt->data[11]=0;
+	memmove(pkt->data+12,&id,4);pkt->data[16]=1;pkt->data[17]=1;
+	pkt->len=18;pkt->size=18;
+}
+
 /*******************************************************************************
- * 鎺ュ彛鍑芥暟
+ * 閹恒儱褰涢崙鑺ユ殶
  ******************************************************************************/
 
 /*
- * 鍒濆鍖? */
+ * 閸掓繂顫愰崠? */
 void iap_init()
 {
 	if(__LL_EFLASH_BankMode_Get(EFLASH)!=EFLASH_BANK_MODE_DOUBLE)
@@ -324,12 +339,13 @@ void iap_init()
 	}
 	iap_flag=false;
 	time_cnt=0;
+	boot_wait_started=sys_millis();
 	jump_flag=false;
 	db_mode=false; db_image_size=0; db_image_crc=0;
 }
 
 /*
- * 鏍￠獙Flash
+ * 閺嶏繝鐛橣lash
  */
 bool iap_flash_verify()
 {
@@ -347,7 +363,7 @@ bool iap_flash_verify()
 }
 
 /*
- * IAP鏁版嵁鍖呰В鐮? */
+ * IAP閺佺増宓侀崠鍛靶掗惍? */
 void iap_pkt_decode(iap_pkt_t *pkt)
 {
 	if(pkt==0)return;
@@ -368,6 +384,7 @@ void iap_pkt_decode(iap_pkt_t *pkt)
 	case 0x23:cmd_bank_confirm(pkt);break;
 	case 0x24:cmd_bank_rollback(pkt);break;
 	case 0x25:cmd_bank_reset(pkt);break;
+	case 0x30:cmd_capability_query(pkt);break;
 	default:
 		pkt->cmd=0xffff;
 		pkt->size=0;
@@ -376,15 +393,15 @@ void iap_pkt_decode(iap_pkt_t *pkt)
 }
 
 /*
- * IAP浠诲姟
- * PFC bootloader琚姩绛夊緟LLC鍙戞潵鐨勫懡浠わ紝涓嶄富鍔ㄨ姹? */
+ * IAP娴犺濮?
+ * PFC bootloader鐞氼偄濮╃粵澶婄窡LLC閸欐垶娼甸惃鍕嚒娴犮倧绱濇稉宥勫瘜閸斻劏顕Ч? */
 void iap_task()
 {
-	//濡傛灉宸茬粡杩涘叆IAP妯″紡锛屽垯閫€鍑猴紙绛夊緟IAP鍛戒护澶勭悊锛?	if(iap_flag)return;
+	//婵″倹鐏夊鑼病鏉╂稑鍙咺AP濡?崇础閿涘苯鍨柅鈧崙鐚寸礄缁涘绶烮AP閸涙垝鎶ゆ径鍕倞閿??	if(iap_flag)return;
 
-	//瓒呮椂鍚庡皾璇曡烦杞珹PP
-	time_cnt++;
-	if(time_cnt<20000)return;
+	//鐡掑懏妞傞崥搴＄毦鐠囨洝鐑︽潪鐝筆P
+	/* Give the LLC gateway enough time to reconnect after both APPs reset. */
+	if((ulong)(sys_millis()-boot_wait_started)<15000UL)return;
 	time_cnt=0;
 
 	if(iap_flash_verify())

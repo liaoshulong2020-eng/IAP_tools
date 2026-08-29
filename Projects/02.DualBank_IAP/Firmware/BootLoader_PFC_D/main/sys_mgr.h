@@ -1,7 +1,7 @@
 /*
  * sys_mgr.h
  *
- *  Created on: 2024Äê1ÔÂ8ÈÕ
+ *  Created on: 2024å¹´1æœˆ8æ—¥
  *      Author: Liang Jinfeng
  */
 
@@ -11,18 +11,20 @@
 #include "main.h"
 
 /*
- * ³õÊ¼»¯
+ * åˆå§‹åŒ–
  */
 void sys_init();
 
 /*
- * ¶¨Ê±Æ÷»Øµ÷º¯Êı
- * Ê±»ù20us
+ * å®šæ—¶å™¨å›è°ƒå‡½æ•°
+ * æ—¶åŸº20us
  */
 void sys_timer_isr();
 
+ulong sys_millis(void);
+
 /*
- * ÏµÍ³¹ÜÀíÈÎÎñ
+ * ç³»ç»Ÿç®¡ç†ä»»åŠ¡
  */
 void sys_task();
 

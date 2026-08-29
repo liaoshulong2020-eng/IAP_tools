@@ -1,4 +1,4 @@
-BankA_image_crc=0xA83927E2
-BankB_image_crc=0x9B31A2D3
-BankA_size=71680
-BankB_size=71680
+BankA_image_crc=0x3EAA8913
+BankB_image_crc=0x422E38C8
+BankA_size=71808
+BankB_size=71808

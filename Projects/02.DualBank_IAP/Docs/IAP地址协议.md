@@ -6,6 +6,7 @@
 - 旧产品救援地址：`0xAA55`，永久保留。
 - 发现地址：`0x18FF50E5`，为后续 UID 发现预留。
 - LLC 包内目标地址为 `2`，PFC 为 `1`，保持旧协议。
+- PFC没有独立的外部CAN ID。升级PFC时仍向LLC的动态CAN ID发送，LLC依据包内目标地址`1`通过UART0转发。
 
 ## 修改地址
 
@@ -18,7 +19,7 @@ payload: target | 0x41 | cmd=0x0005 | new_can_id(u32 LE) | len=0 | size=0 | CRC1
 
 Bootloader 写入另一 Bank 的配置扇区，读回并验证 CRC，最后写 64 位提交标记。ACK 在旧 CAN ID 上返回；新地址复位后生效。
 
-APP 在任务上下文调用：
+LLC APP 在任务上下文调用：
 
 ```c
 if (iap_runtime_change_address(new_id)) {
@@ -27,6 +28,8 @@ if (iap_runtime_change_address(new_id)) {
 ```
 
 不要在 CAN 中断里擦写 Flash。APP 和 Bootloader 必须使用同一份 `Common` 代码。
+
+PFC经LLC网关升级时，“修改IAP地址”只对LLC的外部CAN ID有意义，因此Pro上位机在目标选择PFC时会禁用地址写入按钮。
 
 ## 断电策略
 
