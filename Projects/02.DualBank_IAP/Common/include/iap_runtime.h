@@ -9,6 +9,8 @@ const iap_config_t *iap_runtime_config(void);
 uint32_t iap_runtime_can_id(void);
 bool iap_runtime_accept_id(uint32_t rx_id);
 bool iap_runtime_change_address(uint32_t new_id);
+iap_uart_pinmap_t iap_runtime_uart_pinmap(void);
+bool iap_runtime_change_uart_pinmap(iap_uart_pinmap_t pinmap);
 bool iap_runtime_save_bank_state(uint32_t active_bank, uint32_t pending_bank,
                                  uint32_t image_state, uint32_t boot_attempts);
 

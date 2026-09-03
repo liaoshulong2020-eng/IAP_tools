@@ -112,7 +112,12 @@ static void cmd_enter_iap()
 static void cmd_read_flash()
 {
 //	memmove(iap_pkt->data,(void*)iap_pkt->addr,iap_pkt->len);
-	iap_pkt->size=iap_pkt->len;
+	if(iap_pkt->len>MODBUS_MAX_REG_PAYLOAD_SIZE)
+	{
+		iap_pkt->len=0;
+		iap_pkt->size=0;
+	}
+	else iap_pkt->size=iap_pkt->len;
 
 	//命令处理完成
 	*handle_flag=false;
@@ -123,11 +128,19 @@ static void cmd_read_flash()
  */
 static void write_flash()
 {
-	uchar size,buff[8];
+	ushort size;
+	uchar buff[8];
 	static volatile ulong last_faddr=0;
 
 	if(last_faddr!=iap_pkt->addr)
 	{
+		if(iap_pkt->len>MODBUS_MAX_REG_PAYLOAD_SIZE || iap_pkt->len>(sizeof(txbuff)-7))
+		{
+			iap_pkt->len=0;
+			iap_pkt->size=0;
+			*handle_flag=false;
+			return;
+		}
 		/*
 		 * cmd=0x6D：|bytecount|faddr|len|data|
 		 */
@@ -144,7 +157,7 @@ static void write_flash()
 		txbuff[0]=size;
 
 		//write cmd
-		if(pmbusm_write_cmd_data(pmbus_addr,0x6D,txbuff,size)==false)return;
+		if(size>255 || pmbusm_write_cmd_data(pmbus_addr,0x6D,txbuff,(uchar)size)==false)return;
 		//保存Flash地址
 		last_faddr=iap_pkt->addr;
 		delayms(10);

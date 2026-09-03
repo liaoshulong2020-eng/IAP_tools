@@ -160,11 +160,11 @@ static void cmd_enter_iap(iap_pkt_t *pkt)
 {
 	uchar who;
 
-	iap_flag=true;
-	jump_flag=false;
 	who=pkt->data[0];
 	//如果是自己发送的请求，则不回复ACK
-	if(who==0)pkt->cmd=0xffff;
+	if(who==0){pkt->cmd=0xffff;return;}
+	iap_flag=true;
+	jump_flag=false;
 }
 
 /*
@@ -172,7 +172,7 @@ static void cmd_enter_iap(iap_pkt_t *pkt)
  */
 static void cmd_read_flash(iap_pkt_t *pkt)
 {
-	if(pkt->len>IAP_MAX_PAYLOAD_SIZE || !range_is_valid(pkt->addr,pkt->len,ARG_BASE_ADDR,APP_END_ADDR))
+	if(!iap_flag || pkt->len>IAP_MAX_PAYLOAD_SIZE || !range_is_valid(pkt->addr,pkt->len,ARG_BASE_ADDR,APP_END_ADDR))
 	{
 		pkt->len=0;
 		pkt->size=0;

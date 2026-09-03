@@ -28,6 +28,14 @@ typedef struct {
     uint64_t commit;
 } iap_config_t;
 
+#define IAP_CONFIG_UART_PINMAP_MASK UINT32_C(0x00000003)
+typedef enum {
+    IAP_UART_PINMAP_DEFAULT = 0,
+    IAP_UART0_PA9_PA10 = 1,
+    IAP_UART0_PB9_PB10 = 2,
+    IAP_UART0_PB6_PB7 = 3
+} iap_uart_pinmap_t;
+
 typedef struct {
     bool (*erase_sector)(uint32_t address);
     bool (*program)(uint32_t address, const void *data, size_t size);
@@ -36,6 +44,7 @@ typedef struct {
 
 uint32_t iap_crc32(const void *data, size_t size);
 bool iap_can_id_valid(uint32_t can_id);
+bool iap_uart_pinmap_valid(uint32_t pinmap);
 bool iap_config_valid(const iap_config_t *record);
 void iap_config_defaults(iap_config_t *record, uint32_t fallback_iap_id);
 bool iap_config_load(const iap_flash_ops_t *ops, iap_config_t *record,

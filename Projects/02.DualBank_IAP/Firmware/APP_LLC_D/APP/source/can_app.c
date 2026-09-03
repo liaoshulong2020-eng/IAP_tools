@@ -5,6 +5,7 @@
 #include "can_app.h"
 #include "variables_define_app.h"
 #include "uart_app.h"
+#include "func_app.h"
 
 #define KP_KI_SCALE_FACTOR 100
 
@@ -37,7 +38,7 @@ typedef struct __CAN_UserCtrlTypeDef
   volatile uint32_t rx_cnt;
   CAN_TxBufFormatTypeDef txbuf_fmt;
   CAN_RxBufFormatTypeDef rxbuf_fmt[USER_CAN_RX_FRM_NUMS];
-  uint8_t rx_buf[USER_CAN_RX_FRM_NUMS][64];
+  uint8_t rx_buf[USER_CAN_RX_FRM_NUMS][64] __attribute__((aligned(4)));
 } CAN_UserCtrlTypeDef;
 
 CAN_UserCtrlTypeDef user_can_ctrl;
@@ -869,7 +870,8 @@ void can_init_app(void)
     }
 
   // 锟斤拷锟斤拷CAN锟斤拷锟斤拷锟叫讹拷
-  LL_CAN_Receive_IT(user_can_ctrl.Instance, &user_can_ctrl.rxbuf_fmt[0], user_can_ctrl.rx_buf[0]);
+  LL_CAN_Receive_IT(user_can_ctrl.Instance, &user_can_ctrl.rxbuf_fmt[0],
+                    (uint32_t *)user_can_ctrl.rx_buf[0]);
   for(int i = 0; i < 8; i++)
     {
       llc.can_buf[i] = i;
@@ -900,7 +902,8 @@ void can_send_data_with_crc(void* data_buf, size_t data_size)
 {
   CAN_TxBufFormatTypeDef tx_buf_fmt;
 
-  uint8_t data_with_crc[data_size + 1];
+  uint8_t data_with_crc[8];
+  if(data_buf == NULL || data_size == 0 || data_size > 7)return;
   memcpy(data_with_crc, data_buf, data_size);
 
   uint8_t crc = crc8((uint8_t*)data_buf, data_size);
@@ -1073,7 +1076,7 @@ void LL_CAN_RxCallback(CAN_TypeDef* Instance)
         // 锟斤拷锟斤拷锟斤拷锟斤拷CAN锟斤拷锟斤拷锟叫讹拷
         LL_CAN_Receive_IT(user_can_ctrl.Instance, 
                          &user_can_ctrl.rxbuf_fmt[user_can_ctrl.rx_cnt], 
-                         user_can_ctrl.rx_buf[user_can_ctrl.rx_cnt]);
+                         (uint32_t *)user_can_ctrl.rx_buf[user_can_ctrl.rx_cnt]);
     }
 }
 
@@ -1085,8 +1088,8 @@ void pfc_uart_to_llc_massage(void)
     int vin_on_v = (int)(pfc_received_data.vin_on_voltage_set.f * 10.0f);
     int vout_over_v = (int)(pfc_received_data.vout_over_voltage_sw.f * 10.0f);
     int bus_ovp_v = (int)(pfc_received_data.bus_ovp_point_hw.f * 10.0f);
-    int out_uvp_v = (int)(pfc_received_data.vin_on_voltage_set.f * 10.0f);
-    int out_uvp_rec_v = (int)(pfc_received_data.vin_under_voltage_set.f * 10.0f);
+    int out_uvp_v = (int)(pfc_vout_uvp_point * 10.0f);
+    int out_uvp_rec_v = (int)(pfc_vout_uvp_recovery * 10.0f);
     int ocp_soft = (int)(pfc_received_data.ipfc_ocp_current_sw.f * 10.0f);
     int ocp_dac = (int)(pfc_received_data.pfc_i_ocp_dac_point_hw.f * 10.0f);
     int vbus_target = (int)(pfc_received_data.vbus_target.f * 10.0f);
@@ -1119,6 +1122,19 @@ void pfc_uart_to_llc_massage(void)
     llc.user_can.pfc.live2.pfc_freq_khz = pfc_received_data.switch_frequency;
     split_int16(&llc.user_can.pfc.live2.pfc_duty_high_bit, &llc.user_can.pfc.live2.pfc_duty_low_bit, duty);
     split_int16(&llc.user_can.pfc.live2.pfc_status_high_bit, &llc.user_can.pfc.live2.pfc_status_low_bit, status);
+
+    /* 保留字向新上位机报告链路状态；旧上位机会忽略这两个字节。 */
+    llc.user_can.pfc.protect.in_ovp.reserved0 = pfc_uart_data_valid;
+    llc.user_can.pfc.protect.in_ovp.reserved1 = pfc_uart_report_sequence;
+    llc.user_can.pfc.protect.in_uvp.reserved0 = pfc_uart_data_valid;
+    llc.user_can.pfc.protect.in_uvp.reserved1 = pfc_uart_report_sequence;
+    llc.user_can.pfc.protect.out_ovp.reserved0 = pfc_uart_data_valid;
+    llc.user_can.pfc.protect.out_ovp.reserved1 = pfc_uart_report_sequence;
+    llc.user_can.pfc.protect.out_uvp.reserved0 =
+        (uint8_t)(pfc_uart_data_valid && pfc_uart_protocol_version >= 2U);
+    llc.user_can.pfc.protect.out_uvp.reserved1 = pfc_uart_report_sequence;
+    llc.user_can.pfc.protect.in_ocp.reserved0 = pfc_uart_data_valid;
+    llc.user_can.pfc.protect.in_ocp.reserved1 = pfc_uart_report_sequence;
 }
 void can_addr_set()
 {

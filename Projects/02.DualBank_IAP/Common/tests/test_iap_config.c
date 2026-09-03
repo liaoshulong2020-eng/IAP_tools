@@ -1,6 +1,8 @@
 #include "iap_config.h"
 #include "dualbank_boot.h"
 #include "dualbank_layout.h"
+#include "iap_runtime.h"
+#include "tae32_iap_port.h"
 #include <assert.h>
 #include <stdio.h>
 #include <string.h>
@@ -14,6 +16,8 @@ static bool program_ok(uint32_t a, const void *p, size_t n) {
 }
 static bool read_ok(uint32_t a, void *p, size_t n) { memcpy(p, flash_mem + a - DB_FLASH_BASE, n); return true; }
 static bool image_ok(iap_bank_t b, uint32_t crc) { return b <= IAP_BANK_B && crc == 0x12345678U; }
+static const iap_flash_ops_t runtime_flash = { erase_ok, program_ok, read_ok };
+const iap_flash_ops_t *tae32_iap_flash_ops(void) { return &runtime_flash; }
 
 int main(void)
 {
@@ -28,6 +32,20 @@ int main(void)
     assert(iap_config_set_address(&f, 0xB0008U, &loaded, DB_BANK_A_META, DB_BANK_B_META));
     assert(iap_config_load(&f, &loaded, DB_BANK_A_META, DB_BANK_B_META));
     assert(loaded.iap_can_id == 0xB0008U);
+    loaded.flags = (loaded.flags & ~IAP_CONFIG_UART_PINMAP_MASK) | IAP_UART0_PB9_PB10;
+    assert(iap_config_store(&f, &loaded, DB_BANK_A_META, DB_BANK_B_META));
+    assert(iap_config_load(&f, &loaded, DB_BANK_A_META, DB_BANK_B_META));
+    assert((loaded.flags & IAP_CONFIG_UART_PINMAP_MASK) == IAP_UART0_PB9_PB10);
+    assert(iap_uart_pinmap_valid(IAP_UART_PINMAP_DEFAULT));
+    assert(iap_uart_pinmap_valid(IAP_UART0_PA9_PA10));
+    assert(iap_uart_pinmap_valid(IAP_UART0_PB9_PB10));
+    assert(!iap_uart_pinmap_valid(4U));
+    assert(iap_runtime_init(0xAA55U));
+    assert(iap_runtime_uart_pinmap() == IAP_UART0_PB9_PB10);
+    assert(iap_runtime_change_uart_pinmap(IAP_UART0_PA9_PA10));
+    assert(iap_runtime_uart_pinmap() == IAP_UART0_PA9_PA10);
+    assert(iap_config_load(&f, &loaded, DB_BANK_A_META, DB_BANK_B_META));
+    assert((loaded.flags & IAP_CONFIG_UART_PINMAP_MASK) == IAP_UART0_PA9_PA10);
     assert(iap_accept_can_id(0xB0008U, &loaded));
     assert(iap_accept_can_id(IAP_LEGACY_CAN_ID, &loaded));
     assert(iap_accept_can_id(IAP_DISCOVERY_CAN_ID, &loaded));

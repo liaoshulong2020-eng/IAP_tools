@@ -21,6 +21,7 @@
 /* Includes ------------------------------------------------------------------*/
 #include "../main/main.h"
 #include "gpio.h" //test
+#include "iap_runtime.h"
 
 #define DBG_TAG             "MSP LL"
 #define DBG_LVL             DBG_ERROR
@@ -157,10 +158,23 @@ void LL_UART_MspInit(UART_TypeDef* Instance)
 
     if(Instance == UART0)
     {
-        //UART0 Pinmux Config: PA9 & PA10
-        UART_GPIO_Init.Pin = GPIO_PIN_9 | GPIO_PIN_10;
         UART_GPIO_Init.Alternate = GPIO_AF8_UART0;
-        LL_GPIO_Init(GPIOA, &UART_GPIO_Init);
+        if(iap_runtime_uart_pinmap()==IAP_UART0_PB9_PB10)
+        {
+            UART_GPIO_Init.Pin = GPIO_PIN_9 | GPIO_PIN_10;
+            LL_GPIO_Init(GPIOB, &UART_GPIO_Init);
+        }
+        else if(iap_runtime_uart_pinmap()==IAP_UART0_PB6_PB7)
+        {
+            UART_GPIO_Init.Pin = GPIO_PIN_6 | GPIO_PIN_7;
+            LL_GPIO_Init(GPIOB, &UART_GPIO_Init);
+        }
+        else
+        {
+            /* Legacy PFC default and PA9/PA10 selection. */
+            UART_GPIO_Init.Pin = GPIO_PIN_9 | GPIO_PIN_10;
+            LL_GPIO_Init(GPIOA, &UART_GPIO_Init);
+        }
 
         //UART0 Bus Clock Enable and Soft Reset Release
         LL_RCU_UART0_ClkEnRstRelease();
@@ -952,4 +966,3 @@ void LL_TMR_MspDeInit(TMR_TypeDef *Instance)
 }
 
 /************************* (C) COPYRIGHT Tai-Action *****END OF FILE***********/
-

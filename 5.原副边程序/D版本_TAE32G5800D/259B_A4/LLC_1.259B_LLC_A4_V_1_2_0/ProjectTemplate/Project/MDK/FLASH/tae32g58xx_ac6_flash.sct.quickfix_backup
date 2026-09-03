@@ -11,12 +11,12 @@
 ;   <o1> Flash Size (in Bytes) <0x0-0xFFFFFFFF:8>
 ; </h>
  *----------------------------------------------------------------------------*/
-/*#define __ROM_BASE      0x08000000*/
-/*#define __ROM_SIZE      0x00020000*/
-
-/* ROM���壺ʹ��Bootloader */
 #define __ROM_BASE      0x08008000
 #define __ROM_SIZE      0x38000
+
+/* ROM���壺ʹ��Bootloader */
+/*#define __ROM_BASE      0x08000000*/
+/*#define __ROM_SIZE      0x00020000*/
 /*--------------------- RAMCODE Section Configuration ------------------------
 ; <h> RAMCODE Configuration
 ;   <o0> RAMCODE Base Address <0x0-0xFFFFFFFF:8>

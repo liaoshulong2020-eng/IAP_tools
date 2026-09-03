@@ -276,6 +276,12 @@ void modbusm_recv_byte(uchar data)
 {
 	//如果有数据包未处理则退出
 	if(pkt_flag)return;
+	if(recv_size>=sizeof(recv_buff))
+	{
+		recv_size=0;
+		recv_state=0;
+		return;
+	}
 
 	idle_cnt=0;
 	recv_buff[recv_size]=data;
@@ -317,7 +323,7 @@ void modbusm_recv_byte(uchar data)
 	}
 
 	//防止溢出
-	if(recv_size>=sizeof(modbus_pkt_t))
+	if(!pkt_flag && recv_size>=sizeof(recv_buff))
 	{
 		recv_size=0;
 		recv_state=0;

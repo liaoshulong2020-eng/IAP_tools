@@ -20,6 +20,7 @@
 
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
+#include "iap_runtime.h"
 
 
 #define DBG_TAG     "APP"
@@ -69,6 +70,8 @@ int main(void)
 {
     SystemClock_Config();
     LL_Init();
+		iap_runtime_init(IAP_LEGACY_CAN_ID);
+		iap_runtime_change_uart_pinmap(IAP_UART0_PA9_PA10);
 
 
     LOG_D("App start\n");

@@ -886,7 +886,8 @@ void can_send_data_with_crc(void* data_buf, size_t data_size)
 {
   CAN_TxBufFormatTypeDef tx_buf_fmt;
 
-  uint8_t data_with_crc[data_size + 1];
+  uint8_t data_with_crc[8];
+  if(data_buf == NULL || data_size == 0 || data_size > 7)return;
   memcpy(data_with_crc, data_buf, data_size);
 
   uint8_t crc = crc8((uint8_t*)data_buf, data_size);
@@ -894,7 +895,7 @@ void can_send_data_with_crc(void* data_buf, size_t data_size)
 
   tx_buf_fmt.id_extension = 1;
   tx_buf_fmt.id = __LL_CAN_FrameIDFormat_29Bits(llc.can_addr);
-  tx_buf_fmt.data_len_code = sizeof(data_with_crc);
+  tx_buf_fmt.data_len_code = data_size + 1;
   tx_buf_fmt.remote_tx_req = 0;
 
   LL_StatusETypeDef status = LL_CAN_TransmitPTB_CPU(CAN1, &tx_buf_fmt, (uint32_t*)data_with_crc);

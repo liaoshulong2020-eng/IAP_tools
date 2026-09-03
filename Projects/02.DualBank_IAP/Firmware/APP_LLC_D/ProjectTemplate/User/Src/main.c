@@ -75,6 +75,8 @@ int main(void)
 		user_flash_check();
 		load_data_app();
 		iap_runtime_init(IAP_LEGACY_CAN_ID);
+		/* APP selects the product pin map. Bootloader reads the committed copy. */
+		iap_runtime_change_uart_pinmap(IAP_UART0_PA9_PA10);
 		init_all_app();
 //		LL_GPIO_WritePin(GPIOB, GPIO_PIN_8, GPIO_PIN_SET);
 			__enable_irq(); //Jim edit

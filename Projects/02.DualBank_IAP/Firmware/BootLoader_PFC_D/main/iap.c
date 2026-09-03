@@ -2,8 +2,8 @@
  * iap.c - PFC Bootloader IAP閺嶇ǹ绺鹃柅鏄忕帆
  *
  * PFC bootloader鐞氼偄濮╅幒銉︽暪LLC鏉烆剙褰傞惃鍑P閸涙垝鎶ら敍灞肩瑝娑撹濮╅崣鎴︹偓浣锋崲娴ｆ洝顕Ч? *
- *  Created on: 2024楠??閺??6閺?? *      Author: Liang Jinfeng
- *  Modified: 2025 - 闁倿鍘FC bootloader閿涘瞼些闂勩倓瀵岄崝銊嚞濮瑰倿鈧槒绶?
+ *  Created on: 2024�??�??6�?? *      Author: Liang Jinfeng
+ *  Modified: 2025 - 闁倿鍘FC bootloader閿涘瞼些闂勩倓瀵岄崝銊嚞濮瑰倿鈧槒�?
  */
 
 #include "iap.h"
@@ -21,7 +21,7 @@
 #define PFC_IAP_BOOT_MAGIC_VALUE    0x50464349UL
 
 /*******************************************************************************
- * 闂堟瑦鈧礁褰夐柌? ******************************************************************************/
+ * 闂堟瑦鈧礁褰夐�? ******************************************************************************/
 
 //閺勵垰鎯佹潻娑樺弳IAP濡?崇础
 static bool iap_flag;
@@ -34,14 +34,15 @@ static bool jump_flag;
 
 #define DB_INACTIVE_BASE  0x08020000UL
 #define DB_IMAGE_MAX      0x0001E000UL
+#define ACTIVE_IMAGE_END  (FLASH_BASE_ADDR+DB_IMAGE_MAX)
 static bool db_mode;
 static ulong db_image_size;
 static ulong db_image_crc;
 
 /*******************************************************************************
- * 闂堟瑦鈧礁鍤遍弫? ******************************************************************************/
+ * 闂堟瑦鈧礁鍤遍�? ******************************************************************************/
 
-//鐎规矮绠熼崙鑺ユ殶閹稿洭鎷?
+//鐎规矮绠熼崙鑺ユ殶閹稿洭�?
 typedef void (*app_main_t)(void);
 
 static bool range_is_valid(ulong addr,ulong size,ulong start,ulong end)
@@ -63,6 +64,7 @@ static bool app_info_is_valid(ulong appsize)
 {
 	if(appsize==0)return false;
 	if(appsize>APP_MAX_SIZE)return false;
+	if(appsize>(ACTIVE_IMAGE_END-APP_BASE_ADDR))return false;
 	if(appsize>(APP_END_ADDR-APP_BASE_ADDR))return false;
 	return true;
 }
@@ -78,7 +80,7 @@ static bool app_vector_is_valid()
 	if(sp<RAM_BASE_ADDR || sp>RAM_END_ADDR)return false;
 	if((sp&0x03UL)!=0)return false;
 	if((reset&0x01UL)==0)return false;
-	if(reset_addr<APP_BASE_ADDR || reset_addr>=APP_END_ADDR)return false;
+	if(reset_addr<APP_BASE_ADDR || reset_addr>=ACTIVE_IMAGE_END)return false;
 	return true;
 }
 
@@ -103,16 +105,15 @@ static void jump_to_app()
 	__disable_irq();
 	app=*((ulong*)(APP_BASE_ADDR+4));
 	appmain=(app_main_t)app;
-	//鐠佸墽鐤嗛弽鍫ャ?婇崷鏉挎絻
-	__set_MSP(*((ulong*)APP_BASE_ADDR));
+	//鐠佸墽鐤嗛弽鍫ャ?婇崷鏉挎�?	__set_MSP(*((ulong*)APP_BASE_ADDR));
 	//閸氼垰濮〢PP
 	appmain();
 }
 
 /*
  * @brief 缂傛牜鈻糉lash
- * @param addr 缂傛牜鈻煎鈧慨瀣勾閸р偓閿涘苯绻?妞ょ粯瀵?8鐎涙濡?靛綊缍?
- * @param buff 瀵板懎鍟撻崗顧宭ash閻ㄥ嫭鏆熼幑顔剧处閸愭彃灏?
+ * @param addr 缂傛牜鈻煎鈧慨瀣勾閸р偓閿涘苯�?妞ょ粯�?8鐎涙濡�?靛綊�?
+ * @param buff 瀵板懎鍟撻崗顧宭ash閻ㄥ嫭鏆熼幑顔剧处閸愭彃�?
  * @param size 閺佺増宓侀梹鍨閿涘苯绻?妞ょ粯妲?8閻ㄥ嫬鈧秵鏆?
  */
 static bool flash_program(ulong addr,const void *buff,ulong size)
@@ -170,11 +171,11 @@ static void cmd_enter_iap(iap_pkt_t *pkt)
 {
 	uchar who;
 
-	iap_flag=true;
-	jump_flag=false;
 	who=pkt->data[0];
 	//婵″倹鐏夐弰顖濆殰瀹稿崬褰傞柅浣烘畱鐠囬攱鐪伴敍灞藉灟娑撳秴娲栨径宀瓹K
-	if(who==0)pkt->cmd=0xffff;
+	if(who==0){pkt->cmd=0xffff;return;}
+	iap_flag=true;
+	jump_flag=false;
 }
 
 /*
@@ -182,7 +183,7 @@ static void cmd_enter_iap(iap_pkt_t *pkt)
  */
 static void cmd_read_flash(iap_pkt_t *pkt)
 {
-	if(pkt->len>IAP_MAX_PAYLOAD_SIZE || !range_is_valid(pkt->addr,pkt->len,ARG_BASE_ADDR,APP_END_ADDR))
+	if(!iap_flag || pkt->len>IAP_MAX_PAYLOAD_SIZE || !range_is_valid(pkt->addr,pkt->len,ARG_BASE_ADDR,APP_END_ADDR))
 	{
 		pkt->len=0;
 		pkt->size=0;
@@ -198,7 +199,7 @@ static void cmd_read_flash(iap_pkt_t *pkt)
 static void cmd_write_flash(iap_pkt_t *pkt)
 {
 	ulong write_addr=pkt->addr;
-	bool valid=db_mode?range_is_valid(pkt->addr,pkt->len,FLASH_BASE_ADDR,FLASH_BASE_ADDR+db_image_size):range_is_valid(pkt->addr,pkt->len,APP_BASE_ADDR,APP_END_ADDR);
+	bool valid=db_mode?range_is_valid(pkt->addr,pkt->len,FLASH_BASE_ADDR,FLASH_BASE_ADDR+db_image_size):range_is_valid(pkt->addr,pkt->len,APP_BASE_ADDR,ACTIVE_IMAGE_END);
 	if(!iap_flag || pkt->len>IAP_MAX_PAYLOAD_SIZE || !valid)
 	{
 		pkt->len=0;
@@ -325,8 +326,7 @@ static void cmd_capability_query(iap_pkt_t *pkt)
 }
 
 /*******************************************************************************
- * 閹恒儱褰涢崙鑺ユ殶
- ******************************************************************************/
+ * 閹恒儱褰涢崙鑺ユ�? ******************************************************************************/
 
 /*
  * 閸掓繂顫愰崠? */
@@ -363,7 +363,7 @@ bool iap_flash_verify()
 }
 
 /*
- * IAP閺佺増宓侀崠鍛靶掗惍? */
+ * IAP閺佺増宓侀崠鍛靶掗�? */
 void iap_pkt_decode(iap_pkt_t *pkt)
 {
 	if(pkt==0)return;

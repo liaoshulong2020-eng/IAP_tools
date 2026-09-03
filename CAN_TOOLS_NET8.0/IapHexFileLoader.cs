@@ -2,6 +2,9 @@ namespace CAN_TOOLS;
 
 internal static class IapHexFileLoader
 {
+    private const uint FlashStart = 0x08000000;
+    private const uint FlashEnd = 0x08040000;
+
     public static byte[] Load(string path)
     {
         var memory = new SortedDictionary<uint, byte>();
@@ -36,7 +39,11 @@ internal static class IapHexFileLoader
 
             if (type == 0x00)
             {
-                uint absolute = baseAddress + address;
+                ulong absolute64 = (ulong)baseAddress + address;
+                if (absolute64 < FlashStart || absolute64 >= FlashEnd ||
+                    absolute64 + length > FlashEnd)
+                    throw new InvalidDataException("HEX data address is outside device Flash");
+                uint absolute = (uint)absolute64;
                 for (uint i = 0; i < length; i++)
                 {
                     uint addr = absolute + i;
@@ -51,16 +58,31 @@ internal static class IapHexFileLoader
             }
             else if (type == 0x04)
             {
+                if (data.Length != 2)
+                    throw new InvalidDataException("Invalid HEX extended linear address record");
                 baseAddress = (uint)((data[0] << 8) | data[1]) << 16;
+            }
+            else if (type == 0x02)
+            {
+                if (data.Length != 2)
+                    throw new InvalidDataException("Invalid HEX extended segment address record");
+                baseAddress = (uint)((data[0] << 8) | data[1]) << 4;
+            }
+            else if (type is not 0x03 and not 0x05)
+            {
+                throw new InvalidDataException($"Unsupported HEX record type: 0x{type:X2}");
             }
         }
 
         if (memory.Count == 0) return Array.Empty<byte>();
 
-        var result = new byte[maxAddress - minAddress + 1];
+        uint span = maxAddress - minAddress + 1;
+        if (span > FlashEnd - FlashStart)
+            throw new InvalidDataException("HEX image span exceeds device Flash");
+        var result = new byte[checked((int)span)];
         Array.Fill(result, (byte)0xFF);
         foreach (var item in memory)
-            result[item.Key - minAddress] = item.Value;
+            result[checked((int)(item.Key - minAddress))] = item.Value;
 
         return result;
     }

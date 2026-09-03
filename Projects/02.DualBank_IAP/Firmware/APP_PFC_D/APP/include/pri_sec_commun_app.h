@@ -81,6 +81,7 @@ typedef union {
 typedef struct {
     // ===== 实时测量值 (16 bytes) =====
     float_union_t vbus_target;       ///< 目标总线电压 (V)
+    float_union_t vbus_ref;          ///< 总线电压参考值 (V)，保持与旧版LLC协议布局一致
     float_union_t vbus_rel;          ///< 实际总线电压 (V)
     float_union_t iloop_rel;         ///< 实际环路电流 (A)
     float_union_t vin_rel;           ///< 实际输入电压 (V)
@@ -112,6 +113,23 @@ typedef struct {
     // uint16_t new_counter;          ///< 新增计数器
     
 } __attribute__((packed)) PFC_REPORT_DATA_TypeDef;
+
+/*
+ * 保护点扩展帧。主详细信息帧(0x02)保持旧版62字节数据区不变，
+ * 新增信息使用同长度的0x03帧，避免旧产品的定长DMA接收失步。
+ */
+#define COMM_CMD_PFC_PROTECT_EXT  0x03
+#define PFC_REPORT_PROTOCOL_V2    0x02
+typedef struct {
+    uint8_t protocol_version;
+    uint8_t report_sequence;
+    float_union_t vout_under_voltage;
+    float_union_t vout_recover_voltage;
+    uint8_t reserved[sizeof(PFC_REPORT_DATA_TypeDef) - 10];
+} __attribute__((packed)) PFC_PROTECT_EXT_DATA_TypeDef;
+
+_Static_assert(sizeof(PFC_PROTECT_EXT_DATA_TypeDef) == sizeof(PFC_REPORT_DATA_TypeDef),
+               "PFC extension frame must keep legacy UART frame length");
 
 // ================= ?? 自动计算的宏定义（无需手动修改）=================
 

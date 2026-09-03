@@ -80,6 +80,7 @@ bool cans_tx_is_busy()
  */
 void cans_send_data(const void *data,uchar size)
 {
+	if(data==0 || size==0 || size>8)return;
 	CAN_TxBufFormatTypeDef tx_buf_fmt;
 	memset((void *)&tx_buf_fmt, 0x0, sizeof tx_buf_fmt);
 	tx_buf_fmt.id_extension = 1;

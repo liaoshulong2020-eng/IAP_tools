@@ -339,7 +339,7 @@
               <MiscControls></MiscControls>
               <Define></Define>
               <Undefine></Undefine>
-              <IncludePath>..\..\..\Drivers\TAE32G58xx_Device\Inc;..\..\..\Drivers\TAE32G58xx_Driver\Inc;..\..\..\Utilities;..\..\User\Inc;..\..\..\APP\include</IncludePath>
+              <IncludePath>..\..\..\Drivers\TAE32G58xx_Device\Inc;..\..\..\Drivers\TAE32G58xx_Driver\Inc;..\..\..\Utilities;..\..\User\Inc;..\..\..\APP\include;..\..\..\common</IncludePath>
             </VariousControls>
           </Cads>
           <Aads>
@@ -398,6 +398,14 @@
               <FileType>1</FileType>
               <FilePath>..\..\User\Src\tae32g58xx_ll_msp.c</FilePath>
             </File>
+          </Files>
+        </Group>
+        <Group>
+          <GroupName>IAP/Common</GroupName>
+          <Files>
+            <File><FileName>iap_config.c</FileName><FileType>1</FileType><FilePath>..\..\..\common\src\iap_config.c</FilePath></File>
+            <File><FileName>iap_runtime.c</FileName><FileType>1</FileType><FilePath>..\..\..\common\src\iap_runtime.c</FilePath></File>
+            <File><FileName>tae32_iap_port.c</FileName><FileType>1</FileType><FilePath>..\..\..\common\src\tae32_iap_port.c</FilePath></File>
           </Files>
         </Group>
         <Group>
@@ -1003,7 +1011,7 @@
               <MiscControls></MiscControls>
               <Define></Define>
               <Undefine></Undefine>
-              <IncludePath>..\..\..\Drivers\TAE32G58xx_Device\Inc;..\..\..\Drivers\TAE32G58xx_Driver\Inc;..\..\..\Utilities;..\..\User\Inc</IncludePath>
+              <IncludePath>..\..\..\Drivers\TAE32G58xx_Device\Inc;..\..\..\Drivers\TAE32G58xx_Driver\Inc;..\..\..\Utilities;..\..\User\Inc;..\..\..\APP\include;..\..\..\common</IncludePath>
             </VariousControls>
           </Cads>
           <Aads>
@@ -1062,6 +1070,14 @@
               <FileType>1</FileType>
               <FilePath>..\..\User\Src\tae32g58xx_ll_msp.c</FilePath>
             </File>
+          </Files>
+        </Group>
+        <Group>
+          <GroupName>IAP/Common</GroupName>
+          <Files>
+            <File><FileName>iap_config.c</FileName><FileType>1</FileType><FilePath>..\..\..\common\src\iap_config.c</FilePath></File>
+            <File><FileName>iap_runtime.c</FileName><FileType>1</FileType><FilePath>..\..\..\common\src\iap_runtime.c</FilePath></File>
+            <File><FileName>tae32_iap_port.c</FileName><FileType>1</FileType><FilePath>..\..\..\common\src\tae32_iap_port.c</FilePath></File>
           </Files>
         </Group>
         <Group>

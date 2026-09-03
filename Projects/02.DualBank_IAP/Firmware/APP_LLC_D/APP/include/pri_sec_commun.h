@@ -62,6 +62,7 @@ typedef struct {
 #define PFC_UART_FRAME_HEADER       0x55
 #define PFC_UART_FRAME_TAIL         0xAA
 #define PFC_UART_CMD_DETAIL_INFO    0x02
+#define PFC_UART_CMD_PROTECT_EXT    0x03
 #define PFC_UART_DATA_OFFSET        3
 #define PFC_UART_FRAME_OVERHEAD     5
 #define PFC_UART_FRAME_LENGTH       (sizeof(PFC_RECEIVED_DATA_TypeDef) + PFC_UART_FRAME_OVERHEAD)
@@ -71,6 +72,11 @@ typedef struct {
 
 extern float llc_data_array[DATA_ARRAY_SIZE];
 extern PFC_RECEIVED_DATA_TypeDef pfc_received_data;
+extern float pfc_vout_uvp_point;
+extern float pfc_vout_uvp_recovery;
+extern volatile uint8_t pfc_uart_data_valid;
+extern volatile uint8_t pfc_uart_protocol_version;
+extern volatile uint8_t pfc_uart_report_sequence;
 
 bool parse_pfc_data_from_buffer(void);
 void uart_send_info(void);

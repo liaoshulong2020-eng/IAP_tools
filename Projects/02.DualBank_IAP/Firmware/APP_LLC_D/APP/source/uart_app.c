@@ -201,11 +201,22 @@ void uart_send_u8data(uint8_t *buf)
 
 void uart_receive_data(void)
 {
+    static uint8_t missed_report_polls;
+
     if (DMA0->STR & (1 << 2)) {
         __LL_DMA_TransCpltIntPnd_Clr(DMA, DMA_CHANNEL_0);
         if (parse_pfc_data_from_buffer()) {
+            missed_report_polls = 0U;
             pfc_uart_to_llc_massage();
+            return;
         }
+    }
+
+    if (missed_report_polls < 3U) {
+        missed_report_polls++;
+    } else {
+        /* 连续多个检查周期没有合法帧，禁止把历史缓存伪装成实时PFC数据。 */
+        pfc_uart_data_valid = 0U;
     }
 }
 

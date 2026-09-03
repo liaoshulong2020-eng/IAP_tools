@@ -22,6 +22,11 @@ typedef struct {
 
 float llc_data_array[DATA_ARRAY_SIZE] = {0};
 PFC_RECEIVED_DATA_TypeDef pfc_received_data = {0};
+float pfc_vout_uvp_point = 0.0f;
+float pfc_vout_uvp_recovery = 0.0f;
+volatile uint8_t pfc_uart_data_valid = 0U;
+volatile uint8_t pfc_uart_protocol_version = 0U;
+volatile uint8_t pfc_uart_report_sequence = 0U;
 static comm_frame_8byte_t llc_vbus_target_frame;
 
 static uint8_t calculate_crc8(uint8_t *data, uint16_t len)
@@ -75,7 +80,8 @@ bool parse_pfc_data_from_buffer(void)
         return false;
     }
 
-    if (local_buf[1] != PFC_UART_CMD_DETAIL_INFO) {
+    if (local_buf[1] != PFC_UART_CMD_DETAIL_INFO &&
+        local_buf[1] != PFC_UART_CMD_PROTECT_EXT) {
         return false;
     }
 
@@ -94,7 +100,18 @@ bool parse_pfc_data_from_buffer(void)
         return false;
     }
 
-    memcpy(&pfc_received_data, &local_buf[PFC_UART_DATA_OFFSET], sizeof(PFC_RECEIVED_DATA_TypeDef));
+    if (local_buf[1] == PFC_UART_CMD_DETAIL_INFO) {
+        memcpy(&pfc_received_data, &local_buf[PFC_UART_DATA_OFFSET], sizeof(PFC_RECEIVED_DATA_TypeDef));
+        pfc_uart_data_valid = 1U;
+    } else {
+        float_union_t value;
+        pfc_uart_protocol_version = local_buf[PFC_UART_DATA_OFFSET];
+        pfc_uart_report_sequence = local_buf[PFC_UART_DATA_OFFSET + 1U];
+        memcpy(value.b, &local_buf[PFC_UART_DATA_OFFSET + 2U], sizeof(value.b));
+        pfc_vout_uvp_point = value.f;
+        memcpy(value.b, &local_buf[PFC_UART_DATA_OFFSET + 6U], sizeof(value.b));
+        pfc_vout_uvp_recovery = value.f;
+    }
     return true;
 }
 

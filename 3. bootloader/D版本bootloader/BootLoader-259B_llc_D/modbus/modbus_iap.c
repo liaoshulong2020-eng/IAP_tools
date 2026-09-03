@@ -98,6 +98,12 @@ static void pfc_recv_byte(uchar byte)
 	modbus_iap_t *pkt;
 
 	pfc_timeout_cnt=0; //收到数据，重置超时
+	if(pfc_recv_size>=sizeof(pfc_recv_buff))
+	{
+		pfc_recv_size=0;
+		pfc_recv_state=0;
+		return;
+	}
 
 	if(pfc_recv_state==0)
 	{
@@ -138,6 +144,12 @@ static void pfc_recv_byte(uchar byte)
 		if(pfc_recv_size>12)
 		{
 			pkt=(modbus_iap_t*)pfc_recv_buff;
+			if(pkt->size>MODBUS_MAX_REG_PAYLOAD_SIZE)
+			{
+				pfc_recv_size=0;
+				pfc_recv_state=0;
+				return;
+			}
 			//检查是否接收完整
 			if(pfc_recv_size>=pkt->size+14)
 			{

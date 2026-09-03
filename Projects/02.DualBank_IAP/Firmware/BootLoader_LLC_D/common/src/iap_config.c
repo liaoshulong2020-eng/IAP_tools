@@ -28,13 +28,19 @@ bool iap_can_id_valid(uint32_t can_id)
            can_id != IAP_DISCOVERY_CAN_ID;
 }
 
+bool iap_uart_pinmap_valid(uint32_t pinmap)
+{
+    return pinmap <= IAP_UART0_PB6_PB7;
+}
+
 bool iap_config_valid(const iap_config_t *r)
 {
     uint32_t crc;
     if (!r || r->magic != IAP_CONFIG_MAGIC ||
         r->format_version != IAP_CONFIG_FORMAT ||
         r->record_size != sizeof(*r) || r->commit != IAP_CONFIG_COMMITTED ||
-        !iap_can_id_valid(r->iap_can_id)) {
+        !iap_can_id_valid(r->iap_can_id) ||
+        !iap_uart_pinmap_valid(r->flags & IAP_CONFIG_UART_PINMAP_MASK)) {
         return false;
     }
     crc = iap_crc32(r, offsetof(iap_config_t, crc32));

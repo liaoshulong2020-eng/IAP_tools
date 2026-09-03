@@ -244,6 +244,7 @@ void modbuss_ack_write_reg(ushort reg,ushort num)
 void modbuss_send_iap(uchar *cmd,const void *data,ushort size)
 {
 	ushort crc=0;
+	if(size>MODBUS_MAX_REG_PAYLOAD_SIZE || (size>0 && data==0))return;
 	modbus_iap_t *pkt;
 
 	//��λ����״̬��
@@ -269,6 +270,13 @@ void modbuss_recv_byte(uchar data)
 {
 	//��������ݰ�δ�������˳�
 	if(pkt_flag)return;
+	/* Reject malformed overlength packets before writing the fixed buffer. */
+	if(recv_size>=sizeof(recv_buff))
+	{
+		recv_size=0;
+		recv_state=0;
+		return;
+	}
 
 	idle_cnt=0;
 	recv_buff[recv_size]=data;
@@ -310,7 +318,7 @@ void modbuss_recv_byte(uchar data)
 	}
 
 	//��ֹ���
-	if(recv_size>=sizeof(modbus_pkt_t))
+	if(!pkt_flag && recv_size>=sizeof(recv_buff))
 	{
 		recv_size=0;
 		recv_state=0;

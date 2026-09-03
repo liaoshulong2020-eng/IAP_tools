@@ -29,6 +29,32 @@ static bool jump_flag;
 //���庯��ָ��
 typedef void (*app_main_t)(void);
 
+#define RAM_BASE_ADDR 0x20000000UL
+#define RAM_END_ADDR  0x20020000UL
+#define APP_END_ADDR  (FLASH_BASE_ADDR+FLASH_MAX_SIZE)
+#define IAP_DATA_MAX  256UL
+
+static bool range_is_valid(ulong addr,ulong size,ulong start,ulong end)
+{
+	if(size==0 || addr<start || addr>=end)return false;
+	return size<=(end-addr);
+}
+
+static bool flash_write_is_aligned(ulong addr,ulong size)
+{
+	return ((addr&7UL)==0 && (size&7UL)==0);
+}
+
+static bool app_vector_is_valid()
+{
+	ulong sp=*((ulong*)APP_BASE_ADDR);
+	ulong reset=*((ulong*)(APP_BASE_ADDR+4));
+	ulong reset_addr=reset&(~1UL);
+	if(sp<RAM_BASE_ADDR || sp>RAM_END_ADDR || (sp&3UL)!=0)return false;
+	if((reset&1UL)==0)return false;
+	return reset_addr>=APP_BASE_ADDR && reset_addr<APP_END_ADDR;
+}
+
 /*
  * ��ת��APP
  */
@@ -37,6 +63,7 @@ static void jump_to_app()
 	ulong app;
 	app_main_t appmain;
 
+	if(!iap_flash_verify() || !app_vector_is_valid())return;
 	__disable_irq();
 	app=*((ulong*)(APP_BASE_ADDR+4));
 	appmain=(app_main_t)app;
@@ -57,6 +84,9 @@ static bool flash_program(ulong addr,const void *buff,ulong size)
 	ulong offset,rsize,sector_size,remainder,end_offset,write_addr,write_size,remain,sector_remain,buff_offset;
 	uchar sector_index,end_sector_index,index;
 
+	if(buff==0 || !range_is_valid(addr,size,ARG_BASE_ADDR,APP_END_ADDR))return false;
+	if(addr<APP_BASE_ADDR && addr!=ARG_BASE_ADDR)return false;
+	if(!flash_write_is_aligned(addr,size))return false;
 	offset=addr-FLASH_BASE_ADDR;
 	//��ȡ������С
 	sector_size=LL_EFLASH_SectorSize_Get(EFLASH);
@@ -125,11 +155,11 @@ static void cmd_enter_iap(iap_pkt_t *pkt)
 {
 	uchar who;
 
-	iap_flag=true;
-	jump_flag=false;
 	who=pkt->data[0];
 	//������Լ����͵��������ٻظ�ACK
-	if(who==0)pkt->cmd=0xffff;
+	if(who==0){pkt->cmd=0xffff;return;}
+	iap_flag=true;
+	jump_flag=false;
 }
 
 /*
@@ -139,6 +169,10 @@ static void cmd_enter_iap(iap_pkt_t *pkt)
  */
 static void cmd_read_flash(iap_pkt_t *pkt)
 {
+	if(!iap_flag || pkt->len>IAP_DATA_MAX || !range_is_valid(pkt->addr,pkt->len,ARG_BASE_ADDR,APP_END_ADDR))
+	{
+		pkt->len=0; pkt->size=0; return;
+	}
 	memmove(pkt->data,(void*)pkt->addr,pkt->len);
 	pkt->size=pkt->len;
 }
@@ -150,6 +184,10 @@ static void cmd_read_flash(iap_pkt_t *pkt)
  */
 static void cmd_write_flash(iap_pkt_t *pkt)
 {
+	if(!iap_flag || pkt->len>IAP_DATA_MAX || !range_is_valid(pkt->addr,pkt->len,APP_BASE_ADDR,APP_END_ADDR))
+	{
+		pkt->len=0; pkt->size=0; return;
+	}
 	if(!flash_program(pkt->addr,pkt->data,pkt->len))pkt->len=0;
 	pkt->size=0;
 }
@@ -161,6 +199,11 @@ static void cmd_write_flash(iap_pkt_t *pkt)
  */
 static void cmd_write_checksum(iap_pkt_t *pkt)
 {
+	ulong appsize;
+	if(!iap_flag || pkt->len<8 || pkt->len>IAP_DATA_MAX || pkt->size<8 || !flash_write_is_aligned(ARG_BASE_ADDR,pkt->len)){pkt->len=0;pkt->size=0;return;}
+	memmove(&appsize,pkt->data,4);
+	if(appsize==0 || appsize>APP_MAX_SIZE || appsize>(APP_END_ADDR-APP_BASE_ADDR))
+	{pkt->len=0;pkt->size=0;return;}
 	if(!flash_program(ARG_BASE_ADDR,pkt->data,pkt->len))pkt->len=0;
 	pkt->size=0;
 }
@@ -219,10 +262,10 @@ bool iap_flash_verify()
 
 	appsize=*((ulong*)ARG_BASE_ADDR);
 	appcrc=*((ulong*)(ARG_BASE_ADDR+4));
-	if(appsize>APP_MAX_SIZE)return false;
+	if(appsize==0 || appsize>APP_MAX_SIZE || appsize>(APP_END_ADDR-APP_BASE_ADDR))return false;
 
 	crc32_update(&crc,(void*)APP_BASE_ADDR,appsize);
-	if(crc==appcrc)return true;
+	if(crc==appcrc && app_vector_is_valid())return true;
 
 	return false;
 }
@@ -239,6 +282,7 @@ void iap_pkt_decode(iap_pkt_t *pkt)
 	case 2:cmd_read_flash(pkt);break;
 	case 3:cmd_write_flash(pkt);break;
 	case 4:cmd_write_checksum(pkt);break;
+	default:pkt->cmd=0xffff;pkt->len=0;pkt->size=0;break;
 	}
 }
 

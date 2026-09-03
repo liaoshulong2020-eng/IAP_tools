@@ -99,6 +99,9 @@ LL_StatusETypeDef uart_send_pfc_detail_info(void)
     // 缓冲区大小自动从宏计算
     static volatile uint8_t frame_buffer[COMM_FRAME_TOTAL_SIZE];
     PFC_REPORT_DATA_TypeDef local_data;
+    PFC_PROTECT_EXT_DATA_TypeDef ext_data;
+    static uint8_t report_sequence;
+    static uint8_t send_extension;
     
     // ========================================
     // 步骤1: 填充局部结构体
@@ -106,6 +109,7 @@ LL_StatusETypeDef uart_send_pfc_detail_info(void)
     
     // 实时值
     local_data.vbus_target.f = pfc.vbus_target;
+    local_data.vbus_ref.f = pfc.vbus_ref;
     local_data.vbus_rel.f = pfc.vbus_rel;
     local_data.iloop_rel.f = pfc.iloop.rel;
     local_data.vin_rel.f = pfc.vin_rel;
@@ -155,7 +159,16 @@ LL_StatusETypeDef uart_send_pfc_detail_info(void)
     // ========================================
     
     frame_buffer[0] = COMM_FRAME_HEADER_BYTE;
-    frame_buffer[1] = COMM_CMD_PFC_DETAIL_INFO;
+    if (send_extension) {
+        memset(&ext_data, 0, sizeof(ext_data));
+        ext_data.protocol_version = PFC_REPORT_PROTOCOL_V2;
+        ext_data.report_sequence = ++report_sequence;
+        ext_data.vout_under_voltage.f = VOUT_UNDER_VOLTAGE;
+        ext_data.vout_recover_voltage.f = VOUT_RECOVER_VOLTAGE;
+        frame_buffer[1] = COMM_CMD_PFC_PROTECT_EXT;
+    } else {
+        frame_buffer[1] = COMM_CMD_PFC_DETAIL_INFO;
+    }
     
     // ?? 关键：长度字段自动填充（从 sizeof 计算）
     frame_buffer[2] = (uint8_t)COMM_FRAME_DATA_SIZE;
@@ -165,7 +178,7 @@ LL_StatusETypeDef uart_send_pfc_detail_info(void)
     // ========================================
     
     // ?? 自动适配：循环次数由 COMM_FRAME_DATA_SIZE 决定
-    const uint8_t *src = (const uint8_t*)&local_data;
+    const uint8_t *src = send_extension ? (const uint8_t*)&ext_data : (const uint8_t*)&local_data;
     for (uint16_t i = 0; i < COMM_FRAME_DATA_SIZE; i++) {
         frame_buffer[3 + i] = src[i];
     }
@@ -194,6 +207,7 @@ LL_StatusETypeDef uart_send_pfc_detail_info(void)
     // ========================================
     
     // ?? 自动适配：传输长度由宏计算
+    send_extension ^= 1U;
     return LL_UART_Transmit_DMA(USER_UART, (uint8_t*)frame_buffer, COMM_FRAME_TOTAL_SIZE);
 }
 

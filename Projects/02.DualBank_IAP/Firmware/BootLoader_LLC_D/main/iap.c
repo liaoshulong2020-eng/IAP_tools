@@ -25,6 +25,7 @@ static bool jump_flag;
 
 #define DB_INACTIVE_BASE  0x08020000UL
 #define DB_IMAGE_MAX      0x0001E000UL
+#define ACTIVE_IMAGE_END  (FLASH_BASE_ADDR+DB_IMAGE_MAX)
 static bool db_mode;
 static ulong db_image_size;
 static ulong db_image_crc;
@@ -36,6 +37,14 @@ static ulong db_image_crc;
 //���庯��ָ��
 typedef void (*app_main_t)(void);
 
+#define RAM_BASE_ADDR 0x20000000UL
+#define RAM_END_ADDR  0x20020000UL
+#define APP_END_ADDR  (FLASH_BASE_ADDR+FLASH_MAX_SIZE)
+#define IAP_DATA_MAX  256UL
+static bool range_is_valid(ulong addr,ulong size,ulong start,ulong end){if(size==0||addr<start||addr>=end)return false;return size<=(end-addr);}
+static bool flash_write_is_aligned(ulong addr,ulong size){return ((addr&7UL)==0&&(size&7UL)==0);}
+static bool app_vector_is_valid(){ulong sp=*((ulong*)APP_BASE_ADDR),reset=*((ulong*)(APP_BASE_ADDR+4)),ra=reset&(~1UL);if(sp<RAM_BASE_ADDR||sp>RAM_END_ADDR||(sp&3UL)!=0)return false;if((reset&1UL)==0)return false;return ra>=APP_BASE_ADDR&&ra<ACTIVE_IMAGE_END;}
+
 /*
  * ��ת��APP
  */
@@ -44,6 +53,7 @@ static void jump_to_app()
 	ulong app;
 	app_main_t appmain;
 
+	if(!iap_flash_verify() || !app_vector_is_valid())return;
 	__disable_irq();
 	app=*((ulong*)(APP_BASE_ADDR+4));
 	appmain=(app_main_t)app;
@@ -64,6 +74,8 @@ static bool flash_program(ulong addr,const void *buff,ulong size)
 	ulong offset,rsize,sector_size,remainder,end_offset,write_addr,write_size,remain,sector_remain,buff_offset;
 	uchar sector_index,end_sector_index,index;
 
+	if(buff==0 || !range_is_valid(addr,size,FLASH_BASE_ADDR,APP_END_ADDR))return false;
+	if(!flash_write_is_aligned(addr,size))return false;
 	offset=addr-FLASH_BASE_ADDR;
 	//��ȡ������С
 	sector_size=LL_EFLASH_SectorSize_Get(EFLASH);
@@ -132,11 +144,11 @@ static void cmd_enter_iap(iap_pkt_t *pkt)
 {
 	uchar who;
 
-	iap_flag=true;
-	jump_flag=false;
 	who=pkt->data[0];
 	//������Լ����͵��������ٻظ�ACK
-	if(who==0)pkt->cmd=0xffff;
+	if(who==0){pkt->cmd=0xffff;return;}
+	iap_flag=true;
+	jump_flag=false;
 }
 
 /*
@@ -146,6 +158,7 @@ static void cmd_enter_iap(iap_pkt_t *pkt)
  */
 static void cmd_read_flash(iap_pkt_t *pkt)
 {
+	if(!iap_flag || pkt->len>IAP_DATA_MAX || !range_is_valid(pkt->addr,pkt->len,ARG_BASE_ADDR,APP_END_ADDR)){pkt->len=0;pkt->size=0;return;}
 	memmove(pkt->data,(void*)pkt->addr,pkt->len);
 	pkt->size=pkt->len;
 }
@@ -158,12 +171,17 @@ static void cmd_read_flash(iap_pkt_t *pkt)
 static void cmd_write_flash(iap_pkt_t *pkt)
 {
 	ulong write_addr=pkt->addr;
+	bool valid;
+	if(!iap_flag || pkt->len>IAP_DATA_MAX){pkt->len=0;pkt->size=0;return;}
 	if(db_mode)
 	{
-		if(pkt->addr<FLASH_BASE_ADDR || pkt->addr+pkt->len>FLASH_BASE_ADDR+db_image_size)
+		valid=range_is_valid(pkt->addr,pkt->len,FLASH_BASE_ADDR,FLASH_BASE_ADDR+db_image_size);
+		if(!valid)
 		{pkt->len=0; pkt->size=0; return;}
 		write_addr=DB_INACTIVE_BASE+(pkt->addr-FLASH_BASE_ADDR);
 	}
+	else if(!range_is_valid(pkt->addr,pkt->len,APP_BASE_ADDR,ACTIVE_IMAGE_END))
+	{pkt->len=0;pkt->size=0;return;}
 	if(!flash_program(write_addr,pkt->data,pkt->len))pkt->len=0;
 	pkt->size=0;
 }
@@ -175,6 +193,10 @@ static void cmd_write_flash(iap_pkt_t *pkt)
  */
 static void cmd_write_checksum(iap_pkt_t *pkt)
 {
+	ulong appsize;
+	if(!iap_flag || db_mode || pkt->len<8 || pkt->len>IAP_DATA_MAX || pkt->size<8 || !flash_write_is_aligned(ARG_BASE_ADDR,pkt->len)){pkt->len=0;pkt->size=0;return;}
+	memmove(&appsize,pkt->data,4);
+	if(appsize==0 || appsize>(ACTIVE_IMAGE_END-APP_BASE_ADDR)){pkt->len=0;pkt->size=0;return;}
 	if(!flash_program(ARG_BASE_ADDR,pkt->data,pkt->len))pkt->len=0;
 	pkt->size=0;
 }
@@ -182,6 +204,7 @@ static void cmd_write_checksum(iap_pkt_t *pkt)
 /* cmd=5: persist a new 29-bit IAP CAN ID. Applied after reset. */
 static void cmd_write_iap_address(iap_pkt_t *pkt)
 {
+	if(!iap_flag){pkt->cmd=0xffff;return;}
 	if(!iap_runtime_change_address(pkt->addr))
 	{
 		pkt->cmd=0xffff;
@@ -358,10 +381,10 @@ bool iap_flash_verify()
 
 	appsize=*((ulong*)ARG_BASE_ADDR);
 	appcrc=*((ulong*)(ARG_BASE_ADDR+4));
-	if(appsize>APP_MAX_SIZE)return false;
+	if(appsize==0 || appsize>(ACTIVE_IMAGE_END-APP_BASE_ADDR))return false;
 
 	crc32_update(&crc,(void*)APP_BASE_ADDR,appsize);
-	if(crc==appcrc)return true;
+	if(crc==appcrc && app_vector_is_valid())return true;
 
 	return false;
 }
@@ -371,6 +394,10 @@ bool iap_flash_verify()
  */
 void iap_pkt_decode(iap_pkt_t *pkt)
 {
+	/* Legacy command numbers remain supported, but privileged commands require
+	 * the normal cmd=1 IAP session first. Capability discovery stays read-only. */
+	if(pkt->cmd!=1 && pkt->cmd!=0x30 && !iap_flag)
+	{pkt->cmd=0xffff;pkt->len=0;pkt->size=0;return;}
 	switch(pkt->cmd)
 	{
 	case 0:cmd_exit_iap(pkt);break;
@@ -389,6 +416,7 @@ void iap_pkt_decode(iap_pkt_t *pkt)
 	case 0x24:cmd_bank_rollback(pkt);break;
 	case 0x25:cmd_bank_reset(pkt);break;
 	case 0x30:cmd_capability_query(pkt);break;
+	default:pkt->cmd=0xffff;pkt->len=0;pkt->size=0;break;
 	}
 }
 

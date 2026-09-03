@@ -466,6 +466,7 @@ namespace CAN_TOOLS
                 dataGridView_pfc.Rows.Add("PFC 开关频率(kHz)");
                 dataGridView_pfc.Rows.Add("PFC 占空比(%)");
                 dataGridView_pfc.Rows.Add("PFC 状态标志(hex)");
+                dataGridView_pfc.Rows.Add("PFC 通讯链路");
             }
         }
 
@@ -2595,6 +2596,7 @@ namespace CAN_TOOLS
                 if (!devicesInfoMap.TryGetValue(id, out DeviceData dev)) dev = new DeviceData { ID = id };
                 dev.PFC_Input_OVP_Point = ovp / 10.0f;
                 dev.PFC_Input_OVP_Rec_Point = rec / 10.0f;
+                UpdatePfcLinkState(dev, d);
                 devicesInfoMap[id] = dev;
             }
             RefreshProtectGrid(id);
@@ -2612,6 +2614,7 @@ namespace CAN_TOOLS
                 if (!devicesInfoMap.TryGetValue(id, out DeviceData dev)) dev = new DeviceData { ID = id };
                 dev.PFC_Input_UVP_Point = uvp / 10.0f;
                 dev.PFC_Input_UVP_Rec_Point = rec / 10.0f;
+                UpdatePfcLinkState(dev, d);
                 devicesInfoMap[id] = dev;
             }
             RefreshProtectGrid(id);
@@ -2629,6 +2632,7 @@ namespace CAN_TOOLS
                 if (!devicesInfoMap.TryGetValue(id, out DeviceData dev)) dev = new DeviceData { ID = id };
                 dev.PFC_Output_OVP_Soft_Point = ovp / 10.0f;
                 dev.PFC_Output_OVP_Hard_Point = rec / 10.0f;
+                UpdatePfcLinkState(dev, d);
                 devicesInfoMap[id] = dev;
             }
             RefreshProtectGrid(id);
@@ -2646,6 +2650,7 @@ namespace CAN_TOOLS
                 if (!devicesInfoMap.TryGetValue(id, out DeviceData dev)) dev = new DeviceData { ID = id };
                 dev.PFC_Output_UVP_Point = uvp / 10.0f;
                 dev.PFC_Output_UVP_Rec_Point = rec / 10.0f;
+                UpdatePfcLinkState(dev, d);
                 devicesInfoMap[id] = dev;
             }
             RefreshProtectGrid(id);
@@ -2663,9 +2668,20 @@ namespace CAN_TOOLS
                 if (!devicesInfoMap.TryGetValue(id, out DeviceData dev)) dev = new DeviceData { ID = id };
                 dev.PFC_Input_OCP_Soft_Point = soft / 10.0f;
                 dev.PFC_Input_OCP_Hard_Point = hard / 10.0f;
+                UpdatePfcLinkState(dev, d);
                 devicesInfoMap[id] = dev;
             }
             RefreshProtectGrid(id);
+        }
+
+        // 新固件使用保护帧保留字回报UART链路有效性和PFC上报序号。
+        // 旧固件两个字节均为0，继续兼容，但明确提示无法确认链路新鲜度。
+        private static void UpdatePfcLinkState(DeviceData dev, byte[] d)
+        {
+            if (d.Length < 8) return;
+            dev.PFC_Link_State = d[6] == 1
+                ? $"正常（序号 {d[7]}）"
+                : "旧协议/未确认";
         }
 
         // 0x8D: PFC 实时数据1 (live1)
@@ -2784,6 +2800,7 @@ namespace CAN_TOOLS
                     SetProtectCell(dataGridView_pfc, "PFC 开关频率(kHz)",             pfcColIdx, data.PFC_Switch_Freq_kHz > 0    ? data.PFC_Switch_Freq_kHz.ToString()               : "---");
                     SetProtectCell(dataGridView_pfc, "PFC 占空比(%)",                 pfcColIdx, data.PFC_Duty_Cycle > 0         ? data.PFC_Duty_Cycle.ToString("F1")                : "---");
                     SetProtectCell(dataGridView_pfc, "PFC 状态标志(hex)",             pfcColIdx, data.PFC_Status_Flags != 0        ? $"0x{data.PFC_Status_Flags:X4}"                 : "---");
+                    SetProtectCell(dataGridView_pfc, "PFC 通讯链路",                 pfcColIdx, string.IsNullOrEmpty(data.PFC_Link_State) ? "未收到" : data.PFC_Link_State);
                 }
                 catch (Exception ex) { Console.WriteLine($"RefreshProtectGrid异常: {ex.Message}"); }
             }));
@@ -3583,6 +3600,7 @@ namespace CAN_TOOLS
         public float PFC_Output_UVP_Rec_Point;
         public float PFC_Input_OCP_Soft_Point;
         public float PFC_Input_OCP_Hard_Point;
+        public string PFC_Link_State;
         public float PFC_Vbus_Target;
         public float PFC_Vbus_Ref;
         public float PFC_Vbus_Rel;
