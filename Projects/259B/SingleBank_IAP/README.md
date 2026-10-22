@@ -1,16 +1,16 @@
 # 中瀚蓝盾 TAE32G5800 单 Bank IAP 项目
 
-这是现有产品使用的单 Bank IAP 项目入口，与 `02.DualBank_IAP` 为两个相互独立、地位对等的项目。
+这是259B已有产品使用的单 Bank IAP 项目入口，与同级的 `../DualBank_IAP` 为两套相互独立、地位对等的方案。
 
 ## 项目组成
 
-- Bootloader：[`../../3. bootloader`](../../3.%20bootloader)
-- LLC / PFC APP：[`../../5.原副边程序`](../../5.原副边程序)
-- Pro 上位机：[`../../12.HLD_CANFDToolPro`](../../12.HLD_CANFDToolPro)
-- IAP 文件生成工具：[`../../IapFileCreator`](../../IapFileCreator)
-- Boot + APP 配置及合并工具：[`../../4.boot_config`](../../4.boot_config)
-- 单 Bank 发布产物：[`../../release`](../../release)
-- 协议和设计文档：[`../../docs`](../../docs)
+- Bootloader：[`../../../3. bootloader`](../../../3.%20bootloader)
+- LLC / PFC APP：[`../../../5.原副边程序`](../../../5.原副边程序)
+- Pro 上位机：[`../../../12.HLD_CANFDToolPro`](../../../12.HLD_CANFDToolPro)
+- IAP 文件生成工具：[`../../../IapFileCreator`](../../../IapFileCreator)
+- Boot + APP 配置及合并工具：[`../../../4.boot_config`](../../../4.boot_config)
+- 单 Bank 发布产物：[`../../../release`](../../../release)
+- 协议和设计文档：[`../../../docs`](../../../docs)
 
 ## 兼容原则
 

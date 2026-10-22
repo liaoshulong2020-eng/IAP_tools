@@ -1,15 +1,17 @@
 # 30.CAN_IAP_tools-main 目录总览
 
-本仓库同时维护单 Bank IAP 和双 Bank IAP 两套独立方案。统一项目入口位于 `Projects`，两者是对等项目，不存在包含关系。
+本仓库按产品型号维护完整 IAP 工具链。统一入口位于 `Projects`，259B、269B/C及后续产品均作为平级项目管理。
 
 ## IAP 项目入口
 
-- `Projects/01.SingleBank_IAP`
-  - 已有产品使用的单 Bank IAP 项目入口。
+- `Projects/259B/SingleBank_IAP`
+  - 259B已有产品使用的单 Bank IAP 项目入口。
   - 为兼容旧工程，Bootloader、APP、上位机及发布产物继续保留原路径。
-- `Projects/02.DualBank_IAP`
-  - 独立的双 Bank 在线升级、回滚、Bank 管理及开发板验证项目。
+- `Projects/259B/DualBank_IAP`
+  - 259B独立的双 Bank 在线升级、回滚、Bank 管理及开发板验证项目。
   - 包含自己的固件、上位机、协议文档、可烧录成品和测试包。
+
+新增产品应在 `Projects` 下建立新的型号目录，不与259B混用固件或配置。
 
 ## 主要目录分类
 
